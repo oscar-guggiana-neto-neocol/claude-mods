@@ -347,22 +347,27 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    // What other mods and Claude Code draw here stays, below the warning.
+    const rest = await next(e)
     const [target, dismissed] = await Promise.all([read($, current), read($, bandDismissed)])
     if (e.props.hasSurvey || target === null || target.kind !== 'production' || dismissed === target.username) {
-      return next(e)
+      return rest
     }
     const { Box, Text, Button } = $.ui.resolve(e)
 
     return (
-      <Box gap={1}>
-        <Text color="error" bold>
-          ⚠ PRODUÇÃO
-        </Text>
-        <Text>
-          org alvo: <Text bold>{nameOf(target)}</Text> <Text dimColor>{target.username}</Text>
-        </Text>
-        <Button key="switch" label="Trocar" onPress={() => openPanel($)} />
-        <Button key="hide" label="Ocultar" onPress={() => update($, bandDismissed, () => target.username)} />
+      <Box flexDirection="column">
+        <Box gap={1}>
+          <Text color="error" bold>
+            ⚠ PRODUÇÃO
+          </Text>
+          <Text>
+            org alvo: <Text bold>{nameOf(target)}</Text> <Text dimColor>{target.username}</Text>
+          </Text>
+          <Button key="switch" label="Trocar" onPress={() => openPanel($)} />
+          <Button key="hide" label="Ocultar" onPress={() => update($, bandDismissed, () => target.username)} />
+        </Box>
+        {rest}
       </Box>
     )
   })

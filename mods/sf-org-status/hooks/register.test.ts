@@ -80,8 +80,8 @@ const world = (on: On, files: Record<string, string>) => {
   })
   on('ui.open', () => ({ value: { isPlaced: true } }))
 
-  // The engine's own band: an empty Box.
-  on('ui.render', { component: 'AbovePrompt' }, $ => ({ type: 'Box', props: {}, children: [] }))
+  // What another mod draws in the band, beneath this one.
+  on('ui.render', { component: 'AbovePrompt' }, $ => ({ type: 'Text', props: {}, children: ['outro mod'] }))
 
   return { statuses, commands, store }
 }
@@ -264,7 +264,7 @@ describe('plugin', () => {
     expect(commands).toContainEqual(['sf', 'config', 'set', 'target-org=globexqa', '--json'])
   })
 
-  test('a production target raises the warning band until dismissed', async ($, on) => {
+  test('a production target raises the warning band until dismissed, keeping other mods', async ($, on) => {
     const files = baseFiles()
     files[`${PROJECT}/.sf/config.json`] = JSON.stringify({ 'target-org': 'acme' })
     world(on, files)
@@ -278,7 +278,9 @@ describe('plugin', () => {
     })
 
     expect(await band.find({ text: /PRODUÇÃO/ })).toBeDefined()
+    expect(await band.find({ text: 'outro mod' })).toBeDefined()
     await band.press({ key: 'hide' })
     expect(await band.find({ text: /PRODUÇÃO/ })).toBeUndefined()
+    expect(await band.find({ text: 'outro mod' })).toBeDefined()
   })
 })
