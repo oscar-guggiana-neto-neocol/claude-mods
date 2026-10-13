@@ -1,0 +1,7 @@
+{
+  "name": "focus-mode",
+  "version": "0.1.0",
+  "description": "Modo foco: interface do terminal mais limpa, alternada com /foco",
+  "author": { "name": "Oscar Guggiana" },
+  "types": "./types/index.d.ts"
+}

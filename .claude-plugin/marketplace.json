@@ -1,11 +1,18 @@
 {
   "name": "oscar-claude-mods",
-  "owner": { "name": "Oscar Guggiana" },
+  "owner": {
+    "name": "Oscar Guggiana"
+  },
   "plugins": [
     {
       "name": "sf-org-status",
       "source": "./mods/sf-org-status",
       "description": "Status line com a org Salesforce alvo do projeto"
+    },
+    {
+      "name": "focus-mode",
+      "source": "./mods/focus-mode",
+      "description": "Modo foco: interface do terminal mais limpa, alternada com /foco"
     }
   ]
 }
