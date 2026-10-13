@@ -1,0 +1,9 @@
+{
+  "name": "sf-org-status",
+  "version": "0.2.0",
+  "description": "Org Salesforce alvo na status line, painel para trocar de org por projeto e alerta em produção",
+  "author": {
+    "name": "Oscar Guggiana"
+  },
+  "types": "./types/index.d.ts"
+}

@@ -1,0 +1,11 @@
+{
+  "name": "oscar-claude-mods",
+  "owner": { "name": "Oscar Guggiana" },
+  "plugins": [
+    {
+      "name": "sf-org-status",
+      "source": "./mods/sf-org-status",
+      "description": "Status line com a org Salesforce alvo do projeto"
+    }
+  ]
+}
