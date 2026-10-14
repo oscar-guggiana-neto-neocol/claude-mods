@@ -186,7 +186,17 @@ export const BADGE: Record<OrgKind, string> = {
   unknown: '⚪ não autenticada',
 }
 
-export const statusText = (org: TargetOrg) => `SF ${BADGE[org.kind]} · ${org.alias ?? org.username}`
+/** The badge with the guard's marks: `🟡🔒 sandbox`, `🔴 PROD↓` for a downgraded production. */
+export const badgeOf = (kind: OrgKind, protection?: { level: string; isDowngraded: boolean }) => {
+  const [emoji, ...rest] = BADGE[kind].split(' ')
+  const lock = protection?.level === 'protected' ? '🔒' : ''
+  const label = rest.join(' ') + (protection?.isDowngraded ? '↓' : '')
+
+  return `${emoji}${lock} ${label}`
+}
+
+export const statusText = (org: TargetOrg, protection?: { level: string; isDowngraded: boolean }) =>
+  `SF ${badgeOf(org.kind, protection)} · ${org.alias ?? org.username}`
 
 export const explain = (org: TargetOrg | undefined) =>
   org === undefined

@@ -1,10 +1,12 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { OrgInfo, OrgRow, Panel, TargetOrg } from '../types'
+import type { OrgInfo, OrgRow, Override, Panel, TargetOrg } from '../types'
+import { LOCK, OPERATION_LABEL, findWrites, mentions, otherCommands, protectionOf } from './guard'
+import type { Protection } from './guard'
 import {
-  BADGE,
   aliasesIn,
+  badgeOf,
   baseName,
   buildCatalog,
   explain,
@@ -25,6 +27,13 @@ const POLL_MS = 15_000
 // sf/sfdx commands that can change the target org or its auth.
 const SF_COMMAND = /(^|[\s;&|(])(sf|sfdx)\s/
 const ORG_QUERY = 'SELECT OrganizationType, InstanceName, TrialExpirationDate FROM Organization'
+const PROD_HEADER = '⚠ PRODUÇÃO'
+const PROTECTION_KEY = 'protection'
+const WINDOW_MS = 15 * 60_000
+const CATALOG_MS = 15_000
+const ONCE = 'Autorizar uma vez'
+const FOR_A_WHILE = 'Autorizar por 15 min'
+const DENY = 'Negar'
 
 const current = atom({ plugin: 'og-sf-org-status', key: 'current' } as const, null)
 const panel = atom({ plugin: 'og-sf-org-status', key: 'panel' } as const, null)
@@ -33,9 +42,20 @@ const editing = atom({ plugin: 'og-sf-org-status', key: 'editing' } as const, nu
 const info = atom({ plugin: 'og-sf-org-status', key: 'info' } as const, {})
 const message = atom({ plugin: 'og-sf-org-status', key: 'message' } as const, null)
 const bandDismissed = atom({ plugin: 'og-sf-org-status', key: 'bandDismissed' } as const, null)
+const protection = atom({ plugin: 'og-sf-org-status', key: 'protection' } as const, {})
+const prodAsk = atom({ plugin: 'og-sf-org-status', key: 'prodAsk' } as const, null)
+const downgrading = atom({ plugin: 'og-sf-org-status', key: 'downgrading' } as const, null)
 
 // The status text last shown, so an unchanged org draws nothing.
 let shown: string | undefined
+// The target the 15-minute authorizations were given under; a new target drops them.
+let windowTarget: string | undefined
+// Protected orgs authorized for a while in this session: username → until.
+const windows = new Map<string, number>()
+// Every authenticated org and every alias, read at most every 15 s.
+let orgs: { at: number; catalog: OrgRow[]; aliases: Record<string, string> } | undefined
+// The project's protected orgs, for the system prompt; undefined when none.
+let guardSection: string | undefined
 
 const projectKey = (root: string) => `project:${root}`
 const nameOf = (row: { alias?: string; username: string }) => row.alias ?? row.username
@@ -56,11 +76,34 @@ async function where($: EngineInterface) {
   return { cwd, home, envTarget: sfTarget ?? legacyTarget }
 }
 
+async function loadProtection($: EngineInterface) {
+  const stored = await $.store.get(PROTECTION_KEY)
+  const marks = stored !== null && typeof stored === 'object' ? (stored as Record<string, Override>) : {}
+  await update($, protection, () => marks)
+
+  return marks
+}
+
+async function setOverride($: EngineInterface, username: string, value: Override | undefined) {
+  const marks = { ...(await read($, protection)) }
+  if (value === undefined) delete marks[username]
+  else marks[username] = value
+  await $.store.set(PROTECTION_KEY, marks)
+  await update($, protection, () => marks)
+  windows.delete(username)
+  await refresh($)
+}
+
 async function refresh($: EngineInterface) {
   const { cwd, home, envTarget } = await where($)
   const org = home === undefined ? undefined : await resolveTargetOrg(path => readText($, path), { cwd, home, envTarget })
   await update($, current, () => org ?? null)
-  const text = org && statusText(org)
+  if (org?.username !== windowTarget) {
+    windowTarget = org?.username
+    windows.clear()
+  }
+  const marks = await read($, protection)
+  const text = org && statusText(org, protectionOf(org, marks[org.username]))
   if (text !== shown) {
     shown = text
     $.ui.status(text)
@@ -74,8 +117,60 @@ async function loadCatalog($: EngineInterface, home: string): Promise<OrgRow[]> 
   const entries = await $.fs.list(dir).catch(() => [])
   const names = entries.map(entry => entry.name).filter(name => name.endsWith('.json') && name.includes('@'))
   const auths = await Promise.all(names.map(async name => parse<AuthFile>(await readText($, `${dir}/${name}`)) ?? {}))
+  const aliases = aliasesIn(await readText($, `${dir}/alias.json`))
+  const catalog = buildCatalog(auths, aliases)
+  orgs = { at: Date.now(), catalog, aliases }
 
-  return buildCatalog(auths, aliasesIn(await readText($, `${dir}/alias.json`)))
+  return catalog
+}
+
+/** The catalog and aliases, from the cache while it is fresh. */
+async function knownOrgs($: EngineInterface) {
+  if (orgs !== undefined && Date.now() - orgs.at < CATALOG_MS) return orgs
+  const home = await $.env.get('HOME')
+  if (home !== undefined) await loadCatalog($, home)
+
+  return orgs ?? { at: 0, catalog: [], aliases: {} }
+}
+
+/** The project's orgs: the saved list, else the target's domain mates. */
+async function projectOrgs($: EngineInterface, root: string, catalog: OrgRow[], org: TargetOrg | undefined) {
+  const saved = await $.store.get(projectKey(root))
+  const savedList = Array.isArray(saved) ? saved.filter((u): u is string => typeof u === 'string') : undefined
+
+  return {
+    orgs: savedList ? savedProjectOrgs(catalog, savedList) : inferProjectOrgs(catalog, org),
+    listSource: savedList ? ('saved' as const) : ('inferred' as const),
+  }
+}
+
+/** What the model is told about the project's protected orgs. */
+function sectionFor(rows: OrgRow[], marks: Record<string, Override>) {
+  const guarded = rows
+    .map(row => ({ row, guard: protectionOf(row, marks[row.username]) }))
+    .filter(({ guard }) => guard.level !== 'free')
+  if (guarded.length === 0) return undefined
+  const list = guarded
+    .map(({ row, guard }) => `${nameOf(row)} (${row.username}, ${guard.level === 'production' ? 'PRODUÇÃO' : 'protegida'})`)
+    .join('; ')
+
+  return [
+    `Salesforce org guard (og-sf-org-status): these orgs of the project are protected: ${list}.`,
+    'Writes to them (deploy, DML, anonymous Apex, package installs, permission sets, deploy scripts) pause for the user to confirm; production asks the user to type the org alias.',
+    'Never work around the guard: do not write to these orgs another way (REST API with curl, a script, another tool or org flag). When the guard denies a command, stop and ask the user how to proceed.',
+  ].join(' ')
+}
+
+async function refreshGuardSection($: EngineInterface) {
+  const { cwd, home } = await where($)
+  const root = await findProjectRoot(path => readText($, path), cwd)
+  if (home === undefined || root === undefined) {
+    guardSection = undefined
+    return
+  }
+  const [{ catalog }, org, marks] = await Promise.all([knownOrgs($), read($, current), read($, protection)])
+  const { orgs: rows } = await projectOrgs($, root, catalog, org ?? undefined)
+  guardSection = sectionFor(rows, marks)
 }
 
 async function loadPanel($: EngineInterface) {
@@ -85,21 +180,16 @@ async function loadPanel($: EngineInterface) {
     await update($, panel, () => null)
     return undefined
   }
-  const [org, catalog, saved] = await Promise.all([
-    refresh($),
-    loadCatalog($, home),
-    $.store.get(projectKey(root)),
-  ])
-  const savedList = Array.isArray(saved) ? saved.filter((u): u is string => typeof u === 'string') : undefined
+  const [org, catalog] = await Promise.all([refresh($), loadCatalog($, home)])
   const project = parse<{ name?: string }>(await readText($, `${root}/sfdx-project.json`))
   const next: Panel = {
     root,
     name: project?.name ?? baseName(root),
-    orgs: savedList ? savedProjectOrgs(catalog, savedList) : inferProjectOrgs(catalog, org),
-    listSource: savedList ? 'saved' : 'inferred',
+    ...(await projectOrgs($, root, catalog, org)),
     catalog,
   }
   await update($, panel, () => next)
+  guardSection = sectionFor(next.orgs, await read($, protection))
   const pick = (await read($, selected)) ?? org?.username ?? next.orgs[0]?.username ?? null
   if (pick !== null) await select($, pick)
 
@@ -186,6 +276,112 @@ async function switchTo($: EngineInterface, name: string) {
   return (await read($, message)) ?? ''
 }
 
+type Hit = { row: OrgRow; guard: Protection; operations: string[]; commands: string[] }
+
+/** The guarded orgs a Bash command would write to, production first. */
+async function hitsOf($: EngineInterface, command: string): Promise<Hit[]> {
+  const writes = findWrites(command)
+  const others = otherCommands(command)
+  if (writes.length === 0 && others.length === 0) return []
+  const [{ catalog, aliases }, marks] = await Promise.all([knownOrgs($), read($, protection)])
+  const target = writes.some(write => write.target === undefined) ? await refresh($) : undefined
+  const hits = new Map<string, Hit>()
+  const add = (row: OrgRow, operation: string, text: string) => {
+    const guard = protectionOf(row, marks[row.username])
+    if (guard.level === 'free') return
+    const hit = hits.get(row.username) ?? { row, guard, operations: [], commands: [] }
+    if (!hit.operations.includes(operation)) hit.operations.push(operation)
+    if (!hit.commands.includes(text)) hit.commands.push(text)
+    hits.set(row.username, hit)
+  }
+  const rowOf = (name: string): OrgRow | undefined => {
+    const username = aliases[name] ?? name
+    return catalog.find(row => row.username === username)
+  }
+
+  for (const write of writes) {
+    const row =
+      write.target !== undefined
+        ? rowOf(write.target)
+        : target && (rowOf(target.username) ?? { username: target.username, alias: target.alias, kind: target.kind })
+    if (row !== undefined) add(row, OPERATION_LABEL[write.operation], write.text)
+  }
+  for (const text of others) {
+    for (const row of catalog) if (mentions(text, row)) add(row, 'comando que cita a org', text)
+  }
+
+  return [...hits.values()].sort((a, b) => Number(b.guard.level === 'production') - Number(a.guard.level === 'production'))
+}
+
+const denial = (hit: Hit, why: string) =>
+  `Blocked by the Salesforce org guard: ${why} (${hit.operations.join(', ')} on ${nameOf(hit.row)}, ` +
+  `${hit.guard.level === 'production' ? 'PRODUCTION' : 'protected org'}). ` +
+  'Do not retry the command or work around the guard; ask the user how to proceed.'
+
+/** A protected org: the engine's question, once or for 15 minutes. */
+async function askProtected($: EngineInterface, hit: Hit): Promise<string | undefined> {
+  const until = windows.get(hit.row.username)
+  if (until !== undefined && until > Date.now()) return undefined
+  const question =
+    `${LOCK} ${nameOf(hit.row)} é uma org protegida. ${hit.operations.join(', ')}: ` +
+    `${hit.commands.join(' ; ')} — autorizar?`
+  const answer = await $.ui
+    .ask(question, { header: `${LOCK} Org`, options: [ONCE, FOR_A_WHILE, DENY] })
+    .catch(() => undefined)
+  if (answer === FOR_A_WHILE) windows.set(hit.row.username, Date.now() + WINDOW_MS)
+  if (answer === ONCE || answer === FOR_A_WHILE) return undefined
+
+  return denial(hit, answer === undefined ? 'nobody confirmed the write' : 'the user denied the write')
+}
+
+/**
+ * Production: a sound, and the engine's question under a red banner; only the
+ * alias typed under Other lets it through. The question is a `$` call, so the
+ * wait for the person never counts against the hook's 10-second budget.
+ */
+async function askProduction($: EngineInterface, hit: Hit): Promise<string | undefined> {
+  const name = nameOf(hit.row)
+  void $.audio.play({ asset: 'sounds/alert.wav' }).catch(() => undefined)
+  await update($, prodAsk, () => ({
+    name,
+    username: hit.row.username,
+    operation: hit.operations.join(', '),
+    command: hit.commands.join('\n'),
+  }))
+  const answer = await $.ui
+    .ask(`Digite "${name}" em Other para autorizar ${hit.operations.join(', ')} em PRODUÇÃO. Autorizar?`, {
+      header: PROD_HEADER,
+      options: [DENY, 'Cancelar'],
+    })
+    .catch(() => undefined)
+  await update($, prodAsk, () => null)
+  const typed = answer?.trim()
+
+  return typed === name || typed === hit.row.username
+    ? undefined
+    : denial(hit, answer === undefined ? 'nobody confirmed the write' : 'the user did not type the production alias')
+}
+
+/** Undefined to let the command run, else why it may not. */
+async function guard($: EngineInterface, command: string): Promise<string | undefined> {
+  for (const hit of await hitsOf($, command)) {
+    const refused = hit.guard.level === 'production' ? await askProduction($, hit) : await askProtected($, hit)
+    if (refused !== undefined) return refused
+  }
+
+  return undefined
+}
+
+async function downgrade($: EngineInterface, row: OrgRow, typed: string) {
+  await update($, downgrading, () => null)
+  if (typed.trim() !== nameOf(row) && typed.trim() !== row.username) {
+    await update($, message, () => `Falhou: o nome digitado não confere; ${nameOf(row)} continua PRODUÇÃO.`)
+    return
+  }
+  await setOverride($, row.username, 'protected')
+  await update($, message, () => `${nameOf(row)} rebaixada: agora é protegida (r restaura produção).`)
+}
+
 function infoLine(found: OrgInfo | undefined) {
   if (found === undefined || found.status === 'loading') return 'carregando info…'
   if (found.status === 'error') return `info indisponível: ${found.message}`
@@ -212,7 +408,9 @@ export const register: Register = on => {
       description: 'Painel de orgs Salesforce do projeto (ou /og-sf-org <alias> para trocar)',
       argumentHint: '[alias]',
     })
+    await loadProtection($)
     await refresh($)
+    await refreshGuardSection($)
     // Catches changes made outside the session: another terminal, VS Code.
     $.clock.every(POLL_MS, () => void refresh($))
 
@@ -228,22 +426,75 @@ export const register: Register = on => {
   }).catch(() => ({ text: 'og-sf-org-status: não consegui ler a configuração do sf CLI.' }))
 
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
+    // Fails closed: a guard that cannot decide on a write refuses it.
+    const refused = await guard($, e.command).catch(error =>
+      findWrites(e.command).length > 0 ? `Blocked: the Salesforce org guard failed (${String(error)}).` : undefined,
+    )
+    if (refused !== undefined) return { deny: refused }
     const ran = await next(e)
-    if (SF_COMMAND.test(e.command)) await refresh($)
+    if (SF_COMMAND.test(e.command)) {
+      await refresh($)
+      await refreshGuardSection($)
+    }
 
     return ran
+  }).catch(($, e, next) =>
+    // Past the guard the command already ran: replay it. Before, a write is refused.
+    next.called || findWrites(e.command).length === 0 ? next(e) : { deny: 'Blocked: the Salesforce org guard failed.' },
+  )
+
+  on('prompt.compose', async ($, e, next) => {
+    const composed = await next(e)
+    if (guardSection === undefined) return composed
+
+    return {
+      sections: [...composed.sections, { id: `${PLUGIN}:guard`, text: guardSection, scope: 'session' as const }],
+    }
+  }).catch(($, e, next) => next(e))
+
+  // The production question, under a banner nobody reads past by accident.
+  on('ui.render', { component: 'AskUserQuestion' }, async ($, e, next) => {
+    const drawn = await next(e)
+    const [first] = e.props.questions as { header?: string }[]
+    const ask = first?.header === PROD_HEADER ? await read($, prodAsk) : null
+    if (ask === null) return drawn
+    const { Box, Text } = $.ui.resolve(e)
+
+    return (
+      <Box flexDirection="column">
+        <Box backgroundColor="error" paddingX={1} flexDirection="column">
+          <Text color="inverseText" bold>
+            {`⚠ ⚠ ⚠  PRODUÇÃO · ${ask.name.toUpperCase()}  ⚠ ⚠ ⚠`}
+          </Text>
+          <Text color="inverseText">O Claude quer fazer {ask.operation} numa org de PRODUÇÃO.</Text>
+        </Box>
+        <Box flexDirection="column" marginY={1}>
+          <Text>
+            Org: <Text bold>{ask.name}</Text> <Text dimColor>{ask.username}</Text>
+          </Text>
+          <Text color="error">{ask.command}</Text>
+          <Text dimColor>Só o alias digitado em Other autoriza. Qualquer outra resposta nega.</Text>
+        </Box>
+        {drawn}
+      </Box>
+    )
   }).catch(($, e, next) => next(e))
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Text, Button } = $.ui.resolve(e)
-    const [shownPanel, target, pick, checked, infos, note] = await Promise.all([
+    const elements = $.ui.resolve(e)
+    const { Box, Text, Button } = elements
+    const Input = 'Input' in elements ? elements.Input : undefined
+    const [shownPanel, target, pick, checked, infos, note, marks, lowering] = await Promise.all([
       read($, panel),
       read($, current),
       read($, selected),
       read($, editing),
       read($, info),
       read($, message),
+      read($, protection),
+      read($, downgrading),
     ])
+    const guardOf = (row: OrgRow) => protectionOf(row, marks[row.username])
 
     if (shownPanel === null) {
       return (
@@ -281,7 +532,7 @@ export const register: Register = on => {
                     )
                   }
                 >
-                  {checked.includes(row.username) ? '[x]' : '[ ]'} {BADGE[row.kind]} <Text bold>{nameOf(row)}</Text>{' '}
+                  {checked.includes(row.username) ? '[x]' : '[ ]'} {badgeOf(row.kind, guardOf(row))} <Text bold>{nameOf(row)}</Text>{' '}
                   <Text dimColor>{row.username}</Text>
                 </Button>
               ))}
@@ -296,6 +547,33 @@ export const register: Register = on => {
     }
 
     const row = shownPanel.orgs.find(one => one.username === pick) ?? shownPanel.orgs[0]
+    const rowGuard = row && guardOf(row)
+
+    if (row && lowering === row.username) {
+      return (
+        <Box flexDirection="column">
+          <Text color="error" bold>
+            Rebaixar {nameOf(row)}: ela é classificada como PRODUÇÃO.
+          </Text>
+          <Text>Só faça isso se ela não for produção real (demo, SDO, Trailhead Playground). Ela fica protegida.</Text>
+          {Input && (
+            <Box marginTop={1}>
+              <Input
+                key="downgrade"
+                label={`Digite ${nameOf(row)} para confirmar: `}
+                placeholder={nameOf(row)}
+                submitLabel="rebaixar"
+                autoFocus
+                onSubmit={(value: string) => downgrade($, row, value)}
+              />
+            </Box>
+          )}
+          <Box marginTop={1}>
+            <Button key="cancel-downgrade" label="Cancelar" hotkey="c" onPress={() => update($, downgrading, () => null)} />
+          </Box>
+        </Box>
+      )
+    }
 
     return (
       <Box flexDirection="column">
@@ -311,8 +589,9 @@ export const register: Register = on => {
           {shownPanel.orgs.length === 0 && <Text dimColor>Nenhuma org. Use Editar lista.</Text>}
           {shownPanel.orgs.map(one => (
             <Button key={`row:${one.username}`} plain onPress={() => select($, one.username)}>
-              {one.username === row?.username ? '›' : ' '} {BADGE[one.kind]} <Text bold>{nameOf(one)}</Text>{' '}
+              {one.username === row?.username ? '›' : ' '} {badgeOf(one.kind, guardOf(one))} <Text bold>{nameOf(one)}</Text>{' '}
               <Text dimColor>{one.username}</Text>
+              {guardOf(one).isAuto ? <Text dimColor> (auto)</Text> : ''}
               {one.username === target?.username ? <Text color="success"> ← alvo</Text> : ''}
             </Button>
           ))}
@@ -328,6 +607,27 @@ export const register: Register = on => {
           )}
           {row && <Button key="open" label="Abrir no browser" hotkey="o" onPress={() => openInBrowser($, row)} />}
           {row && <Button key="info" label="Atualizar info" hotkey="i" onPress={() => loadInfo($, row.username)} />}
+          {row && rowGuard && (
+            <Button
+              key="protect"
+              label={
+                rowGuard.level === 'production'
+                  ? 'Rebaixar produção'
+                  : rowGuard.level === 'protected'
+                    ? 'Desproteger'
+                    : 'Proteger'
+              }
+              hotkey="p"
+              onPress={() =>
+                rowGuard.level === 'production'
+                  ? update($, downgrading, () => row.username)
+                  : setOverride($, row.username, rowGuard.level === 'protected' ? 'free' : 'protected')
+              }
+            />
+          )}
+          {row && rowGuard?.isDowngraded && (
+            <Button key="restore" label="Restaurar produção" hotkey="r" onPress={() => setOverride($, row.username, undefined)} />
+          )}
           <Button
             key="edit"
             label="Editar lista"
@@ -350,8 +650,9 @@ export const register: Register = on => {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     // What other mods and Claude Code draw here stays, below the warning.
     const rest = await next(e)
-    const [target, dismissed] = await Promise.all([read($, current), read($, bandDismissed)])
-    if (e.props.hasSurvey || target === null || target.kind !== 'production' || dismissed === target.username) {
+    const [target, dismissed, marks] = await Promise.all([read($, current), read($, bandDismissed), read($, protection)])
+    const isProduction = target !== null && protectionOf(target, marks[target.username]).level === 'production'
+    if (e.props.hasSurvey || target === null || !isProduction || dismissed === target.username) {
       return rest
     }
     const { Box, Text, Button } = $.ui.resolve(e)
