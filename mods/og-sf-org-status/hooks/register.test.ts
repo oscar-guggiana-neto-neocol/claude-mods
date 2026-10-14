@@ -233,7 +233,7 @@ describe('plugin', () => {
     await ui.press({ key: 'target' })
 
     expect(commands).toContainEqual(['sf', 'config', 'set', 'target-org=globexqa', '--json'])
-    expect(statuses.at(-1)).toBe('SF 🟡 sandbox · globexqa')
+    expect(statuses.at(-1)).toBe('SF 🟡🔒 sandbox · globexqa')
     expect(await ui.find({ text: /Org alvo agora: globexqa/ })).toBeDefined()
   })
 
@@ -283,5 +283,127 @@ describe('plugin', () => {
     await band.press({ key: 'hide' })
     expect(await band.find({ text: /PRODUÇÃO/ })).toBeUndefined()
     expect(await band.find({ text: 'outro mod' })).toBeDefined()
+  })
+})
+
+/** The engine's own Bash and question dialog, beneath the guard. */
+const shell = (on: On, answers: (string | Error)[]) => {
+  const ran: string[] = []
+  const asked: string[] = []
+  on('tool.call', { tool: 'Bash' }, ($, e) => {
+    ran.push(e.command)
+    return { result: { stdout: 'ok', stderr: '', interrupted: false, isImage: false } }
+  })
+  on('tool.call', { tool: 'AskUserQuestion' }, ($, e) => {
+    const question = e.questions[0]?.question ?? ''
+    asked.push(question)
+    const answer = answers.shift()
+    if (answer === undefined || answer instanceof Error) throw answer ?? new Error('dismissed')
+    return { result: { questions: e.questions, answers: { [question]: answer } } }
+  })
+
+  return { ran, asked }
+}
+
+const bash = (command: string) => ({ tool: 'Bash' as const, command })
+
+describe('guard', () => {
+  test('a protected org asks; deny blocks, once runs, 15 min stops asking', async ($, on) => {
+    const files = baseFiles()
+    files[`${PROJECT}/.sf/config.json`] = JSON.stringify({ 'target-org': 'globexdev' })
+    world(on, files)
+    const { ran, asked } = shell(on, ['Negar', 'Autorizar uma vez', 'Autorizar por 15 min'])
+
+    const denied = await $.tool.call(bash('sf project deploy start -d force-app -o globexqa'))
+    expect(denied.deny).toContain('Do not retry')
+    expect(asked[0]).toContain('globexqa é uma org protegida')
+    expect(ran).toEqual([])
+
+    await $.tool.call(bash('sf project deploy start -d force-app -o globexqa'))
+    await $.tool.call(bash('sf data update record -s Account -i 001 -o globexqa'))
+    await $.tool.call(bash('sf apex run -f a.apex -o globexqa'))
+    expect(asked).toHaveLength(3)
+    expect(ran).toHaveLength(3)
+  })
+
+  test('reads and free orgs pass without a question', async ($, on) => {
+    const files = baseFiles()
+    files[`${PROJECT}/.sf/config.json`] = JSON.stringify({ 'target-org': 'acme' })
+    world(on, files)
+    const { ran, asked } = shell(on, [])
+
+    await $.tool.call(bash('sf data query -q "SELECT Id FROM Account" -o acme'))
+    await $.tool.call(bash('sf project deploy start -o globexdev'))
+    await $.tool.call(bash('git status'))
+
+    expect(asked).toEqual([])
+    expect(ran).toHaveLength(3)
+  })
+
+  test('production asks with its own header; only the typed alias lets it run', async ($, on) => {
+    const files = baseFiles()
+    files[`${PROJECT}/.sf/config.json`] = JSON.stringify({ 'target-org': 'acme' })
+    world(on, files)
+    const { ran, asked } = shell(on, ['acme', 'acm', 'Negar'])
+
+    expect((await $.tool.call(bash('sf data delete record -s Account -i 001'))).deny).toBeUndefined()
+    expect(asked[0]).toContain('Digite "acme" em Other para autorizar escrita de dados (DML) em PRODUÇÃO')
+    expect(ran).toHaveLength(1)
+
+    expect((await $.tool.call(bash('sf project deploy start'))).deny).toContain('PRODUCTION')
+    expect((await $.tool.call(bash('sf apex run -f a.apex'))).deny).toContain('did not type the production alias')
+    expect(ran).toHaveLength(1)
+  })
+
+  test('with nobody to ask, production is refused', async ($, on) => {
+    const files = baseFiles()
+    files[`${PROJECT}/.sf/config.json`] = JSON.stringify({ 'target-org': 'acme' })
+    world(on, files)
+    const { ran } = shell(on, [new Error('no one to ask')])
+
+    const refused = await $.tool.call(bash('npm run deploy'))
+
+    expect(refused.deny).toContain('nobody confirmed')
+    expect(ran).toEqual([])
+  })
+
+  test('a command naming a protected org by hand asks too', async ($, on) => {
+    const files = baseFiles()
+    files[`${PROJECT}/.sf/config.json`] = JSON.stringify({ 'target-org': 'globexdev' })
+    world(on, files)
+    const { asked } = shell(on, ['Negar'])
+
+    const refused = await $.tool.call(bash('curl -X PATCH https://globex--globexqa.sandbox.my.salesforce.com/services/data'))
+
+    expect(refused.deny).toBeDefined()
+    expect(asked[0]).toContain('comando que cita a org')
+  })
+
+  test('the panel protects, unprotects and downgrades production by its typed alias', async ($, on) => {
+    const files = baseFiles()
+    files[`${PROJECT}/.sf/config.json`] = JSON.stringify({ 'target-org': 'acme' })
+    const { store } = world(on, files)
+    store.set(`project:${PROJECT}`, ['me@acme.com', 'me@globex.com.globexdev'])
+
+    await $.command.run({ command: 'og-sf-org', ...RUN })
+    const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+
+    await ui.press({ key: 'row:me@globex.com.globexdev' })
+    await ui.press({ key: 'protect' })
+    expect(store.get('protection')).toEqual({ 'me@globex.com.globexdev': 'protected' })
+    expect(await ui.find({ text: /🟡🔒 sandbox/ })).toBeDefined()
+
+    await ui.press({ key: 'row:me@acme.com' })
+    await ui.press({ key: 'protect' })
+    await ui.input({ key: 'downgrade', text: 'nope' })
+    expect(await ui.find({ text: /continua PRODUÇÃO/ })).toBeDefined()
+
+    await ui.press({ key: 'protect' })
+    await ui.input({ key: 'downgrade', text: 'acme' })
+    expect(store.get('protection')).toMatchObject({ 'me@acme.com': 'protected' })
+    expect(await ui.find({ text: /🔴🔒 PROD↓/ })).toBeDefined()
+
+    await ui.press({ key: 'restore' })
+    expect(store.get('protection')).toEqual({ 'me@globex.com.globexdev': 'protected' })
   })
 })

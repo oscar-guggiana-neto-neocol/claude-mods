@@ -20,8 +20,42 @@ com **Trocar** (abre o painel) e **Ocultar** (some até o alvo mudar).
 | `i` | Atualizar info |
 | `e` | Editar lista: todas as orgs autenticadas, agrupadas por domínio, para marcar as do projeto |
 | `s` | Salvar lista |
+| `p` | Proteger / desproteger a org (em produção: rebaixar, digitando o alias) |
+| `r` | Restaurar produção numa org rebaixada |
 
 `/og-sf-org <alias>` troca o alvo direto, sem abrir o painel.
+
+## Guarda de orgs protegidas
+
+Comandos de escrita que o Claude roda pela Bash tool numa org protegida param para você confirmar.
+Isso não vale para o que você roda no seu próprio terminal.
+
+**Níveis.** A marca é da org (username) e vale em todos os projetos.
+
+| Nível | Como a org chega lá | Confirmação |
+| --- | --- | --- |
+| Produção | Toda org classificada como produção, por padrão | Bip de alerta e diálogo sob uma faixa vermelha `⚠ PRODUÇÃO · ALIAS`. Só o alias digitado em *Other* autoriza; qualquer outra resposta, ou Esc, nega. Vale para um comando só. |
+| Protegida 🔒 | `p` no painel, ou automática numa sandbox cujo alias ou sufixo de username indique ambiente: uat, qa, stg, staging, preprod, full, partial (`auto`) | Diálogo: **Autorizar uma vez**, **Autorizar por 15 min** (só aquela org, nesta sessão; cai se a org alvo mudar) ou **Negar** |
+| Livre | O resto, ou `p` numa protegida | Nenhuma |
+
+Uma org de demo, SDO ou Trailhead Playground aparece como produção. `p` rebaixa (pede o alias digitado)
+e ela vira protegida, mostrada como `PROD↓`; `r` restaura. A status line mostra `🔒` nas protegidas.
+
+**O que é escrita.** `sf project deploy start/quick/resume` (não `validate`, nem `--dry-run`),
+`project delete source`, `data create/update/delete/upsert/import/bulk`, `apex run` (não `apex run test`),
+`package install`, `org assign permset`, `org delete`, e os equivalentes `sfdx force:*`. Leituras
+(`query`, `retrieve`, `org display/open`, logs) passam livres. A org vem de `-o`/`--target-org`
+(ou `-u`); sem flag, é a org alvo do projeto.
+
+**Caminhos indiretos.** A análise entra em comandos encadeados (`&&`, `;`, `|`, `$(...)`) e em
+`bash -c '...'`. Também pedem confirmação um comando que cite o alias, o username ou a URL de uma org
+protegida (um `curl` na REST API, por exemplo), e scripts do projeto com nome de deploy, push,
+release, data, seed, apex ou migrate (`npm run deploy:uat`, `./scripts/deploy.sh`) quando a org alvo
+é protegida. O system prompt lista as orgs protegidas do projeto e pede ao Claude que não contorne a guarda.
+
+**Quando ninguém pode responder** (`claude -p`, SDK), a escrita é negada. Se a guarda falhar ao
+decidir sobre um comando de escrita, ela nega (falha fechada). Os MCPs que escrevem em orgs ficam
+fora do escopo.
 
 ## De onde vêm as orgs do projeto
 

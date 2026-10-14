@@ -8,7 +8,7 @@
     {
       "name": "og-sf-org-status",
       "source": "./mods/og-sf-org-status",
-      "description": "Status line com a org Salesforce alvo do projeto"
+      "description": "Status line com a org Salesforce alvo do projeto e guarda de escrita em orgs protegidas e produção"
     },
     {
       "name": "og-focus-mode",

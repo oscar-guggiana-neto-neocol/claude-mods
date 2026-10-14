@@ -47,6 +47,20 @@ export type Panel = {
   catalog: OrgRow[]
 }
 
+/** How a write to an org is guarded: free, a click, or the typed alias. */
+export type ProtectionLevel = 'free' | 'protected' | 'production'
+
+/** The person's mark on an org, over its kind and name. */
+export type Override = 'protected' | 'free'
+
+/** A production write waiting for the person to type the org's alias. */
+export type ProdAsk = {
+  name: string
+  username: string
+  operation: string
+  command: string
+}
+
 declare module 'claude-code' {
   interface PluginState {
     'og-sf-org-status': {
@@ -58,6 +72,12 @@ declare module 'claude-code' {
       editing: string[] | null
       info: Record<string, OrgInfo>
       message: string | null
+      /** The person's marks, by username: the store's copy, for drawing. */
+      protection: Record<string, Override>
+      /** The production write on screen, waiting for the typed alias. */
+      prodAsk: ProdAsk | null
+      /** The production org being downgraded in the panel, waiting for its alias. */
+      downgrading: string | null
       /** The production username whose warning band was dismissed. */
       bandDismissed: string | null
     }

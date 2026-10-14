@@ -6,7 +6,7 @@ e passa a valer em todos os projetos.
 
 | Mod | Tipo | O que faz |
 | --- | --- | --- |
-| [og-sf-org-status](mods/og-sf-org-status) | status line, painel, faixa, `/og-sf-org` | Org Salesforce alvo à vista, troca entre as orgs do projeto e alerta em produção |
+| [og-sf-org-status](mods/og-sf-org-status) | status line, painel, faixa, `/og-sf-org` | Org Salesforce alvo à vista, troca entre as orgs do projeto e guarda de escrita em orgs protegidas e produção |
 | [og-focus-mode](mods/og-focus-mode) | render hooks, `/og-foco` | Interface mais limpa: ferramentas em uma linha, resultados só em erro, sem rodapés de turno |
 
 ## Instalar (uma vez)
