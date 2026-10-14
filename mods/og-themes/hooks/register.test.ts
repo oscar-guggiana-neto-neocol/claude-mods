@@ -34,7 +34,11 @@ const world = (on: On) => {
   const files: Record<string, string> = {}
   on('session.cwd', () => ({ value: PROJECT }))
   on('fs.exists', ($, e) => ({ value: e.path in files }))
-  on('fs.read', ($, e) => ({ value: files[e.path] }))
+  on('fs.read', ($, e) => {
+    const text = files[e.path]
+    if (text === undefined) throw new Error(`ENOENT ${e.path}`)
+    return { value: text }
+  })
   on('fs.write', ($, e) => {
     files[e.path] = e.text
     return { value: undefined }
@@ -55,11 +59,11 @@ describe('plugin', () => {
     const files = world(on)
 
     expect((await $.command.run(run('neocol light'))).text).toBe('Tema deste projeto: Neocol light.')
-    expect(JSON.parse(files[SETTINGS]).theme).toBe('custom:og-themes:neocol-light')
+    expect(JSON.parse(files[SETTINGS] ?? '{}').theme).toBe('custom:og-themes:neocol-light')
 
     expect((await $.command.run(run('lagana'))).text).toBe('Tema deste projeto: LaGana Lion light.')
     expect((await $.command.run(run('dark'))).text).toBe('Tema deste projeto: LaGana Lion dark.')
-    expect(JSON.parse(files[SETTINGS]).theme).toBe('custom:og-themes:lagana-dark')
+    expect(JSON.parse(files[SETTINGS] ?? '{}').theme).toBe('custom:og-themes:lagana-dark')
 
     expect((await $.command.run(run(''))).text).toMatch(/^Tema deste projeto: LaGana Lion dark\./)
   })
@@ -70,6 +74,6 @@ describe('plugin', () => {
 
     expect((await $.command.run(run('initech'))).text).toMatch(/^Não conheço "initech"/)
     expect((await $.command.run(run('claude'))).text).toMatch(/tema global/)
-    expect(JSON.parse(files[SETTINGS])).toEqual({ env: { A: '1' } })
+    expect(JSON.parse(files[SETTINGS] ?? '{}')).toEqual({ env: { A: '1' } })
   })
 })

@@ -14,6 +14,11 @@
       "name": "og-focus-mode",
       "source": "./mods/og-focus-mode",
       "description": "Modo foco: interface do terminal mais limpa, alternada com /og-foco"
+    },
+    {
+      "name": "og-themes",
+      "source": "./mods/og-themes",
+      "description": "Temas Neocol e LaGana Lion (dark e light), escolhidos por projeto com /og-tema"
     }
   ]
 }
