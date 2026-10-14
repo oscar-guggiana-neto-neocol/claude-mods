@@ -83,6 +83,6 @@ export const register: Register = on => {
   on('ui.render', { component: 'SessionMode' }, async ($, e, next) => {
     if (!(await read($, isOn))) return next(e)
 
-    return next({ ...e, props: { ...e.props, modes: [...e.props.modes, 'foco'] } })
+    return next({ ...e, props: { ...e.props, modes: [...e.props.modes, 'og-foco'] } })
   })
 }

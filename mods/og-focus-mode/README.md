@@ -1,7 +1,7 @@
 # og-focus-mode
 
 Uma interface do terminal mais limpa, alternada com `/og-foco`. A escolha fica lembrada entre sessões,
-e o rodapé mostra `foco` enquanto o modo está ligado.
+e o rodapé mostra `og-foco` enquanto o modo está ligado.
 
 | Com o modo ligado | |
 | --- | --- |

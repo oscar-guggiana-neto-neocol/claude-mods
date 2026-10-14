@@ -105,7 +105,7 @@ describe('plugin', () => {
     expect(await failed.find({ text: 'engine row' })).toBeDefined()
   })
 
-  test('on: results, turn lines and notices are hidden; the footer says foco', async ($, on) => {
+  test('on: results, turn lines and notices are hidden; the footer says og-foco', async ($, on) => {
     world(on)
     await $.command.run({ command: 'og-foco', ...RUN })
 
