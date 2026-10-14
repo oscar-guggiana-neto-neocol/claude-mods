@@ -4,8 +4,8 @@ import type { EngineInterface, Register } from 'claude-code'
 import type { OrgInfo, OrgRow, Override, Panel, TargetOrg } from '../types'
 import { barCells } from './gradient'
 import type { Cell, Palette } from './gradient'
-import { LOCK, OPERATION_LABEL, findWrites, mentions, otherCommands, protectionOf } from './guard'
-import type { Shell } from './guard'
+import { LOCK, OPERATION_LABEL, apexOnlyReads, findWrites, graphqlOnlyReads, mentions, otherCommands, protectionOf } from './guard'
+import type { Shell, Write } from './guard'
 import type { Protection } from './guard'
 import {
   aliasesIn,
@@ -304,11 +304,29 @@ const shellCall = (e: { tool: string }): { command: string; shell: Shell } | und
   return shell !== undefined && typeof command === 'string' ? { command, shell } : undefined
 }
 
+/**
+ * Whether anonymous Apex or GraphQL only reads, from its file or the command
+ * line itself. A file that cannot be read counts as a write; a GraphQL `--body`
+ * that is no file is the query inline.
+ */
+async function onlyReads($: EngineInterface, write: Write, command: string): Promise<boolean> {
+  if (write.code === undefined) return false
+  const { language, file } = write.code
+  const path = file !== undefined && !/^([\\/]|[A-Za-z]:|~)/.test(file) ? `${await $.session.cwd()}/${file}` : file
+  const code =
+    path === undefined || file === '-' ? command : await $.fs.read(path).catch(() => (language === 'graphql' ? file : undefined))
+  if (code === undefined) return false
+
+  return language === 'apex' ? apexOnlyReads(code) : graphqlOnlyReads(code)
+}
+
 type Hit = { row: OrgRow; guard: Protection; operations: string[]; commands: string[] }
 
 /** The guarded orgs a shell command would write to, production first. */
 async function hitsOf($: EngineInterface, command: string, shell: Shell): Promise<Hit[]> {
-  const writes = findWrites(command, shell)
+  const found = findWrites(command, shell)
+  const reads = await Promise.all(found.map(write => onlyReads($, write, command)))
+  const writes = found.filter((_, i) => !reads[i])
   const others = otherCommands(command, shell)
   if (writes.length === 0 && others.length === 0) return []
   const [{ catalog, aliases }, marks] = await Promise.all([knownOrgs($), read($, protection)])

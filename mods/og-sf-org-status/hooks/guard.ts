@@ -176,6 +176,11 @@ export type Write = {
   target?: string
   /** The simple command it was found in, for the confirmation. */
   text: string
+  /**
+   * Anonymous Apex and GraphQL may only read: the code to look at before asking,
+   * from `file` (`--file`, `--body`) or, absent, the whole command line (heredoc, pipe).
+   */
+  code?: { language: 'apex' | 'graphql'; file?: string }
 }
 
 const flagValue = (words: Words, names: string[]): string | undefined => {
@@ -233,6 +238,54 @@ const sfOperation = (args: Words): Operation | undefined => {
   return undefined
 }
 
+/** Where the code of an anonymous Apex or GraphQL call is, so a read-only one can pass. */
+const codeOf = (operation: Operation, args: Words): Write['code'] => {
+  if (operation === 'apex') return { language: 'apex', file: flagValue(args, ['--file', '-f', '--apexcodefile']) }
+  if (operation === 'api' && args.includes('graphql')) return { language: 'graphql', file: flagValue(args, ['--body']) }
+
+  return undefined
+}
+
+/** Code without comments and string literals, so a word in a string or a comment counts for nothing. */
+const bareCode = (code: string) =>
+  code.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\n]*/g, ' ').replace(/'(?:\\.|[^'\\])*'/g, "''")
+
+// Apex types whose static calls and constructors never write.
+// Their writing methods (`Database.insert`, `System.enqueueJob`) are in APEX_WRITES.
+const APEX_READ_TYPES = new Set([
+  'system', 'database', 'string', 'integer', 'long', 'decimal', 'double', 'boolean', 'date', 'datetime', 'time', 'id',
+  'blob', 'list', 'set', 'map', 'json', 'jsongenerator', 'jsonparser', 'schema', 'limits', 'userinfo', 'math', 'url',
+  'encodingutil', 'crypto', 'pattern', 'matcher', 'sobjecttype', 'sobjectfield', 'object', 'exception', 'organization',
+])
+// Standard objects a read script may build without saving them.
+const SOBJECTS = new Set(['account', 'contact', 'lead', 'opportunity', 'case', 'user', 'product2', 'pricebookentry', 'quote', 'order', 'contract', 'task', 'event'])
+
+const APEX_WRITES = [
+  // DML statements: `insert acc;`, `update new Account(...)`, `delete [SELECT ...]`.
+  /\b(insert|update|upsert|delete|undelete|merge)\s+[\w([]/i,
+  /\bdatabase\s*\.\s*(insert|update|upsert|delete|undelete|merge|convertlead|emptyrecyclebin|executebatch|rollback|setsavepoint)\w*\s*\(/i,
+  /\b(eventbus\s*\.\s*publish|system\s*\.\s*(enqueuejob|schedule|schedulebatch|setpassword|resetpassword)|messaging\s*\.\s*send\w*|approval\s*\.\s*(process|lock|unlock))\b/i,
+  /\bnew\s+http\s*\(/i,
+]
+
+/**
+ * Whether anonymous Apex only reads: no DML, no async or callout, and no call
+ * into the org's own classes, which may write behind a name.
+ */
+export const apexOnlyReads = (code: string) => {
+  const bare = bareCode(code)
+  if (APEX_WRITES.some(write => write.test(bare))) return false
+  const own = (name: string) => !APEX_READ_TYPES.has(name.toLowerCase()) && !/__(c|mdt|e)$/i.test(name)
+  const statics = [...bare.matchAll(/\b([A-Z]\w*)\s*\.\s*\w+\s*\(/g)].map(match => match[1] as string)
+  const created = [...bare.matchAll(/\bnew\s+([A-Za-z]\w*)\s*\(/g)].map(match => match[1] as string)
+
+  return !statics.some(own) && !created.some(name => own(name) && !SOBJECTS.has(name.toLowerCase()))
+}
+
+
+/** Whether a GraphQL document only queries. */
+export const graphqlOnlyReads = (code: string) => !/\bmutation\b/i.test(code)
+
 const SCRIPT_NAME = /deploy|push|release|data|seed|apex|migrate/i
 
 /** The name of a project script a command runs (`npm run deploy:uat`, `./scripts/deploy.sh`), if any. */
@@ -260,7 +313,7 @@ export const findWrites = (line: string, shell: Shell = 'bash', depth = 0): Writ
     if (name === 'sf' || name === 'sfdx') {
       const args = words.slice(1)
       const operation = sfOperation(args)
-      return operation ? [{ operation, target: flagValue(args, TARGET_FLAGS), text }] : []
+      return operation ? [{ operation, target: flagValue(args, TARGET_FLAGS), text, code: codeOf(operation, args) }] : []
     }
     const script = scriptName(words)
     if (script !== undefined && SCRIPT_NAME.test(script)) return [{ operation: 'script' as const, text }]
@@ -268,7 +321,35 @@ export const findWrites = (line: string, shell: Shell = 'bash', depth = 0): Writ
     return []
   })
 
-/** The simple commands that are not `sf`/`sfdx`, where a protected org named by hand is a write we cannot read. */
+const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
+// Programs that run code we cannot read: naming a protected org there may write.
+const INTERPRETERS = new Set(['node', 'python', 'python3', 'ruby', 'perl', 'deno', 'bun', 'tsx', 'ts-node', 'php', 'java', 'jshell'])
+
+/** Whether an HTTP client call sends a method other than a read, or a body. */
+const httpWrites = (name: string, args: Words): boolean => {
+  const writesBy = (method: string | undefined) => method !== undefined && !READ_METHODS.has(method.toUpperCase())
+  if (name === 'curl') {
+    const clustered = args.findIndex(word => /^-[a-zA-Z]*X$/.test(word))
+    const method = flagValue(args, ['--request', '-X']) ?? (clustered >= 0 ? args[clustered + 1] : undefined)
+    return writesBy(method) || args.some(word => /^(-[a-zA-Z]*[dFT]|--data.*|--form.*|--json|--upload-file)$/.test(word.split('=')[0] as string))
+  }
+  if (name === 'wget') return writesBy(flagValue(args, ['--method'])) || args.some(word => /^--(post|body)-(data|file)/.test(word))
+  if (['http', 'https', 'xh'].includes(name)) {
+    const plain = args.filter(word => !word.startsWith('-'))
+    return writesBy(/^[A-Za-z]+$/.test(plain[0] ?? '') ? plain[0] : undefined) || plain.some(word => /^[^=:]+(:=|=)(?!=)/.test(word) && !word.includes('=='))
+  }
+  if (['invoke-restmethod', 'invoke-webrequest', 'irm', 'iwr'].includes(name)) {
+    return writesBy(flagValue(args.map(word => word.toLowerCase()), ['-method'])) || args.some(word => /^-body$/i.test(word))
+  }
+
+  return false
+}
+
+/**
+ * The simple commands that are not `sf`/`sfdx` and may write, where a protected
+ * org named by hand is a write we cannot read: an HTTP client sending a body or
+ * a writing method, or an interpreter running code. Reads (`cat`, `grep`, a GET) pass.
+ */
 export const otherCommands = (line: string, shell: Shell = 'bash', depth = 0): string[] =>
   splitCommands(line, shell).flatMap(raw => {
     const words = commandWords(raw)
@@ -278,7 +359,7 @@ export const otherCommands = (line: string, shell: Shell = 'bash', depth = 0): s
     if (inner !== undefined) return otherCommands(inner.line, inner.shell, depth + 1)
     const name = programName(first)
 
-    return name === 'sf' || name === 'sfdx' ? [] : [raw.join(' ')]
+    return INTERPRETERS.has(name) || httpWrites(name, words.slice(1)) ? [raw.join(' ')] : []
   })
 
 const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')

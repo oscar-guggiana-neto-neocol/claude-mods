@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { findWrites, looksLikeEnvironment, mentions, otherCommands, protectionOf, splitCommands } from './guard'
+import { apexOnlyReads, findWrites, graphqlOnlyReads, looksLikeEnvironment, mentions, otherCommands, protectionOf, splitCommands } from './guard'
 
 const ops = (line: string) => findWrites(line).map(write => [write.operation, write.target])
 const psOps = (line: string) => findWrites(line, 'powershell').map(write => [write.operation, write.target])
@@ -132,8 +132,60 @@ describe('mentions', () => {
     expect(mentions('git checkout feature/initech-uat-fix', uat)).toBe(false)
   })
 
-  test('only commands other than sf are checked by name', () => {
+  test('only commands other than sf that may write are checked by name', () => {
     expect(otherCommands('sf data query -o initech-uat && node x.js initech-uat')).toEqual(['node x.js initech-uat'])
     expect(otherCommands(`bash -c 'sf org display -o initech-uat'`)).toEqual([])
+  })
+
+  test('reads that name the org pass: files, searches, GETs', () => {
+    expect(otherCommands('cat ~/.sf/config.json | jq .initech-uat && grep -r initech-uat .')).toEqual([])
+    expect(otherCommands('curl -s https://initech--uat.sandbox.my.salesforce.com/services/data/v62.0/limits')).toEqual([])
+    expect(otherCommands('curl -X GET -H "Authorization: Bearer x" https://h/services/data')).toEqual([])
+    expect(otherCommands('http GET https://h/services/data Authorization:x q==1')).toEqual([])
+    expect(otherCommands('Invoke-RestMethod -Uri https://h/services/data', 'powershell')).toEqual([])
+  })
+
+  test('HTTP writes are checked by name', () => {
+    expect(otherCommands('curl -X PATCH https://h/x')).toHaveLength(1)
+    expect(otherCommands('curl -sX POST https://h/x')).toHaveLength(1)
+    expect(otherCommands("curl https://h/x -d '{}'")).toHaveLength(1)
+    expect(otherCommands('curl https://h/x --data-raw @a.json')).toHaveLength(1)
+    expect(otherCommands('wget --post-data a=1 https://h/x')).toHaveLength(1)
+    expect(otherCommands('http PATCH https://h/x Name=Acme')).toHaveLength(1)
+    expect(otherCommands('http https://h/x Name=Acme')).toHaveLength(1)
+    expect(otherCommands('Invoke-RestMethod -Method Post -Uri https://h/x', 'powershell')).toHaveLength(1)
+    expect(otherCommands('iwr https://h/x -Body $b', 'powershell')).toHaveLength(1)
+  })
+})
+
+describe('read-only code', () => {
+  test('anonymous Apex that only queries and prints reads', () => {
+    expect(apexOnlyReads("List<Account> a = [SELECT Id FROM Account WHERE Name = 'update x'];\nSystem.debug(JSON.serialize(a));")).toBe(true)
+    expect(apexOnlyReads('Integer n = Database.countQuery(\'SELECT COUNT() FROM Lead\'); System.debug(n); // insert later')).toBe(true)
+    expect(apexOnlyReads('Account a = new Account(Name = \'x\'); Map<Id, Account> m = new Map<Id, Account>(); System.debug(a);')).toBe(true)
+    expect(apexOnlyReads('for (Product2 p : [SELECT Id FROM Product2 FOR UPDATE]) System.debug(p);')).toBe(true)
+  })
+
+  test('DML, async, callouts and our own classes write', () => {
+    expect(apexOnlyReads('Account a = [SELECT Id FROM Account LIMIT 1]; a.Name = \'x\'; update a;')).toBe(false)
+    expect(apexOnlyReads('delete [SELECT Id FROM Lead];')).toBe(false)
+    expect(apexOnlyReads('Database.insert(records, false);')).toBe(false)
+    expect(apexOnlyReads('System.enqueueJob(new Q());')).toBe(false)
+    expect(apexOnlyReads('EventBus.publish(e);')).toBe(false)
+    expect(apexOnlyReads('new Http().send(req);')).toBe(false)
+    expect(apexOnlyReads('AccountService.closeAll();')).toBe(false)
+    expect(apexOnlyReads('new QuoteSync().run();')).toBe(false)
+  })
+
+  test('GraphQL reads unless it carries a mutation', () => {
+    expect(graphqlOnlyReads('query { uiapi { query { Account { edges { node { Id } } } } } }')).toBe(true)
+    expect(graphqlOnlyReads('mutation { uiapi { AccountUpdate(input: {}) { success } } }')).toBe(false)
+  })
+
+  test('apex and GraphQL writes carry where their code is', () => {
+    expect(findWrites('sf apex run -f script.apex -o prod')[0]?.code).toEqual({ language: 'apex', file: 'script.apex' })
+    expect(findWrites('sf apex run -o prod')[0]?.code).toEqual({ language: 'apex', file: undefined })
+    expect(findWrites('sf api request graphql --body q.graphql -o QA')[0]?.code).toEqual({ language: 'graphql', file: 'q.graphql' })
+    expect(findWrites('sf data delete record -s Account -i 001')[0]?.code).toBeUndefined()
   })
 })

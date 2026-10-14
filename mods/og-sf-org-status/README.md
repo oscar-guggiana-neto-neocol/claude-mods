@@ -50,13 +50,20 @@ protected orgs.
 `--dry-run`), `project delete source`, `data create/update/delete/upsert/import/bulk`, `apex run`
 (not `apex run test`), `package install`, `org assign permset`, `org delete`, `api request rest`
 with a method other than GET (`--method`/`-X`), `api request graphql`, and the `sfdx force:*`
-equivalents. Reads (`query`, `retrieve`, `org display/open`, logs) pass freely. The org comes from
+equivalents. Reads (`query`, `retrieve`, `org display/open`, logs) pass freely, and so does
+anonymous Apex that only queries and prints (no DML, no `Database.insert` and the like, no async
+or callout, no call into the org's own classes) and GraphQL without a `mutation`; the guard reads
+the code from `--file`/`--body`, or from the command line for a heredoc or a pipe, and a file it
+cannot read counts as a write. The org comes from
 `-o`/`--target-org` (or `-u`), case-insensitive; with no flag, it is the project's target org.
 
 **Indirect paths.** The parser follows chained commands (`&&`, `;`, `|`, `$(...)`) and
 `bash -c '...'`, `pwsh -Command`, `cmd /c`, and reads PowerShell syntax (paths with `\`,
 `& "...\sf.cmd"`, the backtick as escape and line continuation). A command that names the alias,
-username or URL of a protected org (a `curl` to the REST API, for instance) asks too, and so do
+username or URL of a protected org asks too when it may write: an HTTP client sending a body or a
+method other than GET (`curl -X PATCH`, `curl -d`, `wget --post-data`, HTTPie, `Invoke-RestMethod
+-Method Post`), or an interpreter running code (`node`, `python` and the like). Reads that name the
+org (`cat`, `grep`, `jq`, a `curl` GET) pass. Project scripts
 project scripts named deploy, push, release, data, seed, apex or migrate (`npm run deploy:uat`,
 `./scripts/deploy.sh`) when the target org is protected. The system prompt lists the project's
 protected orgs and tells Claude not to work around the guard.

@@ -446,6 +446,25 @@ describe('guard', () => {
     expect(asked[0]).toContain('command naming the org')
   })
 
+  test('reads of a protected org pass: read-only Apex, a GET, files that name it', async ($, on) => {
+    const files = baseFiles()
+    files[`${PROJECT}/.sf/config.json`] = JSON.stringify({ 'target-org': 'globexqa' })
+    files[`${PROJECT}/scripts/count.apex`] = 'System.debug([SELECT COUNT() FROM Product2]);'
+    files[`${PROJECT}/scripts/fix.apex`] = 'update [SELECT Id FROM Product2];'
+    world(on, files)
+    const { ran, asked } = shell(on, ['Deny'])
+
+    await $.tool.call(bash('sf apex run -f scripts/count.apex'))
+    await $.tool.call(bash(`echo "System.debug(UserInfo.getUserName());" | sf apex run -o globexqa`))
+    await $.tool.call(bash('curl -s https://globex--globexqa.sandbox.my.salesforce.com/services/data/v62.0/limits'))
+    await $.tool.call(bash('grep -rn globexqa . && cat .sf/config.json'))
+    expect(asked).toEqual([])
+    expect(ran).toHaveLength(4)
+
+    expect((await $.tool.call(bash('sf apex run -f scripts/fix.apex'))).deny).toContain('Do not retry')
+    expect(asked).toHaveLength(1)
+  })
+
   test('the panel protects, unprotects and downgrades production by its typed alias', async ($, on) => {
     const files = baseFiles()
     files[`${PROJECT}/.sf/config.json`] = JSON.stringify({ 'target-org': 'acme' })
