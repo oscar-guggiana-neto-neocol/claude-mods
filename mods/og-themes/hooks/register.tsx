@@ -4,9 +4,9 @@ import type { EngineInterface, Register } from 'claude-code'
 import { baseName, fromKey, key, label, OPTIONS, parseArgs, projectSlug, themeFile, themeOf, withTheme } from './theme'
 import type { Choice } from './theme'
 
-const COMMAND = 'og-tema'
-const PANE = 'og-tema'
-const USAGE = 'Uso: /og-tema (menu), /og-tema <1-6>, /og-tema [claude|neocol|lagana] [dark|light], /og-tema reset.'
+const COMMAND = 'og-theme'
+const PANE = 'og-theme'
+const USAGE = 'Usage: /og-theme (menu), /og-theme <1-6>, /og-theme [claude|neocol|lagana] [dark|light], /og-theme reset.'
 
 const choice = atom({ plugin: 'og-themes', key: 'choice' } as const, null)
 const note = atom({ plugin: 'og-themes', key: 'note' } as const, null)
@@ -66,8 +66,8 @@ async function apply($: EngineInterface, picked: Choice): Promise<string> {
   await update($, choice, () => key(picked))
 
   const text = (await isLive($, p.slug))
-    ? `Tema deste projeto: ${label(picked)}.`
-    : `Tema deste projeto: ${label(picked)}. Vale a partir da próxima sessão neste projeto; depois disso as trocas aparecem na hora.`
+    ? `This project's theme: ${label(picked)}.`
+    : `This project's theme: ${label(picked)}. It takes effect from the next session in this project; after that, changes show at once.`
   await update($, note, () => text)
 
   return text
@@ -80,12 +80,12 @@ async function reset($: EngineInterface): Promise<string> {
   await $.store.set(`choice:${p.slug}`, null)
   await update($, choice, () => null)
 
-  return 'Tema do projeto removido: na próxima sessão vale o tema global.'
+  return 'Project theme removed: the next session uses the global theme.'
 }
 
 async function openMenu($: EngineInterface) {
   await update($, note, () => null)
-  await $.ui.open({ id: PANE, title: 'Tema', focus: true, closeOnEscape: true })
+  await $.ui.open({ id: PANE, title: 'Theme', focus: true, closeOnEscape: true })
 }
 
 export const register: Register = on => {
@@ -93,7 +93,7 @@ export const register: Register = on => {
     const started = await next(e)
     await $.command.register({
       name: COMMAND,
-      description: 'Tema do projeto: Claude, Neocol ou LaGana Lion, dark ou light',
+      description: 'Project theme: Claude, Neocol or LaGana Lion, dark or light',
       argumentHint: '[1-6 | claude|neocol|lagana dark|light | reset]',
     })
     const p = await project($)
@@ -112,16 +112,16 @@ export const register: Register = on => {
     if (args.kind === 'menu') {
       await openMenu($)
       const now = fromKey(await read($, choice))
-      return { text: now ? `Tema deste projeto: ${label(now)}.` : 'Este projeto usa o tema global.' }
+      return { text: now ? `This project's theme: ${label(now)}.` : 'This project uses the global theme.' }
     }
     if (args.kind === 'reset') return { text: await reset($) }
-    if (args.kind === 'unknown') return { text: `Não conheço "${args.words.join(' ')}". ${USAGE}` }
+    if (args.kind === 'unknown') return { text: `Unknown option "${args.words.join(' ')}". ${USAGE}` }
 
     const now = fromKey(await read($, choice))
     const picked: Choice = { brand: args.brand ?? now?.brand ?? 'claude', mode: args.mode ?? now?.mode ?? 'dark' }
 
     return { text: await apply($, picked) }
-  }).catch(() => ({ text: 'og-themes: não consegui gravar o tema do projeto.' }))
+  }).catch(() => ({ text: 'og-themes: could not save the project theme.' }))
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Text, Button } = $.ui.resolve(e)
@@ -129,7 +129,7 @@ export const register: Register = on => {
 
     return (
       <Box flexDirection="column">
-        <Text bold>Tema deste projeto: tecle o número</Text>
+        <Text bold>This project's theme: press a number</Text>
         <Box flexDirection="column" marginTop={1}>
           {OPTIONS.map((option, i) => (
             <Button
@@ -142,7 +142,7 @@ export const register: Register = on => {
           ))}
         </Box>
         <Box marginTop={1}>
-          {shownNote !== null ? <Text dimColor>{shownNote}</Text> : <Text dimColor>Esc fecha.</Text>}
+          {shownNote !== null ? <Text dimColor>{shownNote}</Text> : <Text dimColor>Esc closes.</Text>}
         </Box>
       </Box>
     )

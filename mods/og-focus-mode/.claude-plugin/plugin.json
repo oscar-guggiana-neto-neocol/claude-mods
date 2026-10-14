@@ -1,7 +1,7 @@
 {
   "name": "og-focus-mode",
-  "version": "0.1.0",
-  "description": "Modo foco: interface do terminal mais limpa, alternada com /og-foco",
+  "version": "0.2.0",
+  "description": "Focus mode: a cleaner terminal interface, toggled with /og-focus",
   "author": { "name": "Oscar Guggiana" },
   "types": "./types/index.d.ts"
 }

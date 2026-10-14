@@ -27,7 +27,7 @@ export type Args =
   | { kind: 'pick'; brand?: Brand; mode?: Mode }
   | { kind: 'unknown'; words: string[] }
 
-/** `/og-tema 3`, `/og-tema neocol light` (any order, either word), `/og-tema reset`. */
+/** `/og-theme 3`, `/og-theme neocol light` (any order, either word), `/og-theme reset`. */
 export function parseArgs(args: string): Args {
   const words = args.toLowerCase().split(/\s+/).filter(word => word !== '')
   if (words.length === 0) return { kind: 'menu' }
@@ -59,12 +59,13 @@ export function baseName(cwd: string): string {
 export function projectSlug(cwd: string): string {
   const name = baseName(cwd).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 32)
 
+  // The `og-tema-` prefix predates the English command; kept so projects already set keep their file.
   return `og-tema-${name || 'root'}-${hash(cwd)}`
 }
 
 /** The project's theme file: Claude's own preset, or a brand's colors on its base. */
 export function themeFile(choice: Choice, project: string, overrides: Record<string, string>): string {
-  const theme = { name: `og-tema · ${project} (${label(choice)})`, base: choice.mode, overrides }
+  const theme = { name: `og-theme · ${project} (${label(choice)})`, base: choice.mode, overrides }
 
   return `${JSON.stringify(theme, null, 2)}\n`
 }

@@ -1,17 +1,17 @@
 # og-focus-mode
 
-Uma interface do terminal mais limpa, alternada com `/og-foco`. A escolha fica lembrada entre sessões,
-e o rodapé mostra `og-foco` enquanto o modo está ligado.
+A cleaner terminal interface, toggled with `/og-focus`. The choice is remembered across sessions,
+and the footer shows `og-focus` while the mode is on.
 
-| Com o modo ligado | |
+| With the mode on | |
 | --- | --- |
-| Chamadas de ferramenta | Uma linha esmaecida: `· Bash git status`, `· Read src/org.ts`, `· jira · jira_get_issue` (`◦` enquanto roda) |
-| Edições (Edit/Write) | Uma linha com contagem: `· Edit src/org.ts +12 −3` |
-| Resultados | Escondidos, exceto quando a chamada falha |
-| Erros e interrupções | A linha completa do Claude Code, como sempre |
-| `Baked for 3s`, avisos sob o logo | Escondidos |
-| `? for shortcuts` | Escondido quando ocioso (`esc to interrupt` continua durante o turno) |
+| Tool calls | One dim line: `· Bash git status`, `· Read src/org.ts`, `· jira · jira_get_issue` (`◦` while running) |
+| Edits (Edit/Write) | One line with counts: `· Edit src/org.ts +12 −3` |
+| Results | Hidden, unless the call fails |
+| Errors and interruptions | Claude Code's full row, as usual |
+| `Baked for 3s`, notices under the logo | Hidden |
+| `? for shortcuts` | Hidden while idle (`esc to interrupt` stays during a turn) |
 
-Fora do alcance de um mod: as linhas de saída de hooks (`SessionStart:startup hook success`) e os
-blocos de sistema. O transcript completo (ctrl+o) também fica compacto com o modo ligado. Para ver
-tudo, desligue com `/og-foco`.
+Out of a mod's reach: hook output lines (`SessionStart:startup hook success`) and system blocks.
+The full transcript (ctrl+o) is compact too while the mode is on. To see everything, turn it off
+with `/og-focus`.

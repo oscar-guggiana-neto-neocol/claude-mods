@@ -72,24 +72,24 @@ describe('plugin', () => {
     expect(await ui.find({ text: 'engine row' })).toBeDefined()
   })
 
-  test('/og-foco turns it on and off, and remembers it', async ($, on) => {
+  test('/og-focus turns it on and off, and remembers it', async ($, on) => {
     const { store } = world(on)
 
-    expect((await $.command.run({ command: 'og-foco', ...RUN })).text).toBe('Modo foco ligado.')
+    expect((await $.command.run({ command: 'og-focus', ...RUN })).text).toBe('Focus mode on.')
     expect(store.get('isOn')).toBe(true)
 
     const ui = await $.ui.mount(toolUse({}))
     expect(await ui.find({ text: /· Bash git status/ })).toBeDefined()
     expect(await ui.find({ text: 'engine row' })).toBeUndefined()
 
-    expect((await $.command.run({ command: 'og-foco', ...RUN })).text).toBe('Modo foco desligado.')
+    expect((await $.command.run({ command: 'og-focus', ...RUN })).text).toBe('Focus mode off.')
     expect(store.get('isOn')).toBe(false)
     expect(await ui.find({ text: 'engine row' })).toBeDefined()
   })
 
   test('on: an edit shows its counts, an error keeps the full row', async ($, on) => {
     world(on)
-    await $.command.run({ command: 'og-foco', ...RUN })
+    await $.command.run({ command: 'og-focus', ...RUN })
 
     const edit = await $.ui.mount(
       toolUse({
@@ -105,9 +105,9 @@ describe('plugin', () => {
     expect(await failed.find({ text: 'engine row' })).toBeDefined()
   })
 
-  test('on: results, turn lines and notices are hidden; the footer says og-foco', async ($, on) => {
+  test('on: results, turn lines and notices are hidden; the footer says og-focus', async ($, on) => {
     world(on)
-    await $.command.run({ command: 'og-foco', ...RUN })
+    await $.command.run({ command: 'og-focus', ...RUN })
 
     const result = await $.ui.mount({
       plugin: 'og-focus-mode',

@@ -158,15 +158,15 @@ const commandWords = (words: Words): Words => {
 export type Operation = 'deploy' | 'delete' | 'data' | 'api' | 'apex' | 'package' | 'permset' | 'org-delete' | 'script'
 
 export const OPERATION_LABEL: Record<Operation, string> = {
-  deploy: 'deploy de metadata',
-  delete: 'remoção de metadata',
-  data: 'escrita de dados (DML)',
-  api: 'chamada de API que escreve',
-  apex: 'Apex anônimo',
-  package: 'instalação de pacote',
-  permset: 'atribuição de permission set',
-  'org-delete': 'exclusão da org',
-  script: 'script do projeto',
+  deploy: 'metadata deploy',
+  delete: 'metadata delete',
+  data: 'data write (DML)',
+  api: 'API call that writes',
+  apex: 'anonymous Apex',
+  package: 'package install',
+  permset: 'permission set assignment',
+  'org-delete': 'org deletion',
+  script: 'project script',
 }
 
 /** A write found in a command: what it does and the org it names, if any. */

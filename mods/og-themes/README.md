@@ -1,49 +1,46 @@
 # og-themes
 
-Temas do Claude Code para saber de relance para quem você está trabalhando:
-o tema normal do Claude (pessoal), **Neocol** e **LaGana Lion**, cada um em dark e light.
+Claude Code themes that tell you at a glance who you are working for: Claude's normal theme
+(personal), **Neocol** and **LaGana Lion**, each in dark and light.
 
-| Tema | Destaque | Borda do prompt | Fundo da mensagem |
+| Theme | Accent | Prompt border | Message background |
 | --- | --- | --- | --- |
-| Neocol dark / light | aqua `#00a6a5` / teal `#3d7986` | teal / aqua | navy `#0d2c39` / cinza `#e6e7e8` |
-| LaGana Lion dark / light | vermelho chevron `#E8473A` | navy `#4A6080` / `#344563` | navy `#1E2D45` / `#EAECF0` |
+| Neocol dark / light | aqua `#00a6a5` / teal `#3d7986` | teal / aqua | navy `#0d2c39` / gray `#e6e7e8` |
+| LaGana Lion dark / light | chevron red `#E8473A` | navy `#4A6080` / `#344563` | navy `#1E2D45` / `#EAECF0` |
 
-As cores vêm dos design systems (`neocol-branding`, 2026, e `lagana-branding`, coleção Lion).
+The colors come from the design systems (`neocol-branding`, 2026, and `lagana-branding`, Lion collection).
 
-## Uso
+## Usage
 
-`/og-tema` abre um menu numerado. Tecle o número e o tema muda na hora:
+`/og-theme` opens a numbered menu. Press the number and the theme changes at once:
 
 ```
 1. Claude dark        3. Neocol dark        5. LaGana Lion dark
 2. Claude light       4. Neocol light       6. LaGana Lion light
 ```
 
-Também dá para escolher direto:
+You can also pick directly:
 
 ```
-/og-tema 4                 # Neocol light
-/og-tema lagana            # troca a marca, mantém dark/light
-/og-tema light             # troca só o modo
-/og-tema reset             # tira o tema do projeto: volta o tema global
+/og-theme 4                # Neocol light
+/og-theme lagana           # changes the brand, keeps dark/light
+/og-theme light            # changes only the mode
+/og-theme reset            # removes the project theme: back to the global theme
 ```
 
-## Como funciona
+## How it works
 
-Cada projeto (diretório da sessão) tem um arquivo de tema próprio,
-`~/.claude/themes/og-tema-<pasta>-<hash>.json`, e o `.claude/settings.local.json` do
-projeto aponta para ele (`"theme": "custom:og-tema-..."`). O Claude Code recarrega
-`~/.claude/themes/` quando um arquivo muda, então o `/og-tema` só reescreve esse arquivo
-e a sessão troca de cor na hora. Sessões abertas em projetos diferentes ficam cada uma
-com o seu tema.
+Each project (the session's directory) has its own theme file,
+`~/.claude/themes/og-tema-<folder>-<hash>.json`, and the project's `.claude/settings.local.json`
+points at it (`"theme": "custom:og-tema-..."`). Claude Code reloads `~/.claude/themes/` when a
+file changes, so `/og-theme` only rewrites that file and the session changes color at once.
+Sessions open in different projects each keep their own theme.
 
-O Claude Code lê o setting `theme` só ao iniciar. Por isso, **na primeira escolha num
-projeto** o tema vale a partir da próxima sessão (o comando avisa). Depois disso todas
-as trocas são ao vivo.
+Claude Code reads the `theme` setting only at startup. So **on the first pick in a project** the
+theme takes effect from the next session (the command says so). After that, every change is live.
 
-Os quatro temas de marca também aparecem em `/theme` ("Neocol Dark", "LaGana Lion
-Light"...). Num projeto com `/og-tema`, o `/theme` muda só o tema global, e o projeto
-continua com o dele.
+The four brand themes also show in `/theme` ("Neocol Dark", "LaGana Lion Light"...). In a project
+with `/og-theme`, `/theme` changes only the global theme, and the project keeps its own.
 
-No Windows o arquivo fica em `%USERPROFILE%\.claude\themes`; com `CLAUDE_CONFIG_DIR` definido,
-em `$CLAUDE_CONFIG_DIR/themes`.
+On Windows the file lives in `%USERPROFILE%\.claude\themes`; with `CLAUDE_CONFIG_DIR` set, in
+`$CLAUDE_CONFIG_DIR/themes`.

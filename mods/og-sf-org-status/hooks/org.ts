@@ -191,7 +191,7 @@ export const BADGE: Record<OrgKind, string> = {
   sandbox: '🟡 sandbox',
   scratch: '🟢 scratch',
   developer: '🔵 dev-ed',
-  unknown: '⚪ não autenticada',
+  unknown: '⚪ not authenticated',
 }
 
 /** The badge with the guard's marks: `🟡🔒 sandbox`, `🔴 PROD↓` for a downgraded production. */
@@ -208,12 +208,12 @@ export const statusText = (org: TargetOrg, protection?: { level: string; isDowng
 
 export const explain = (org: TargetOrg | undefined) =>
   org === undefined
-    ? 'Nenhuma org alvo: fora de um projeto Salesforce DX ou sem target-org configurada.'
+    ? 'No target org: outside a Salesforce DX project, or no target-org set.'
     : [
-        `Org alvo: ${org.alias ?? org.username} (${org.kind})`,
+        `Target org: ${org.alias ?? org.username} (${org.kind})`,
         `Username: ${org.username}`,
         org.instanceUrl && `Instance: ${org.instanceUrl}`,
-        `Origem: ${{ env: 'variável SF_TARGET_ORG', project: '.sf/config.json do projeto', global: '~/.sf/config.json' }[org.source]}`,
+        `Source: ${{ env: 'SF_TARGET_ORG variable', project: "the project's .sf/config.json", global: '~/.sf/config.json' }[org.source]}`,
       ]
         .filter(Boolean)
         .join('\n')

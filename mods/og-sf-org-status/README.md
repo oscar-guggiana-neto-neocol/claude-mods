@@ -1,88 +1,90 @@
 # og-sf-org-status
 
-A org Salesforce alvo do projeto, sempre à vista, e um painel para trocar entre as orgs do projeto.
+The project's target Salesforce org, always in sight, and a panel to switch between the project's orgs.
 
-## O que faz
+## What it does
 
 **Status line:** `SF 🔴 PROD · RevCloudDemo` · `SF 🟡 sandbox · globexqa` · `SF 🟢 scratch · rac-demo4` · `SF 🔵 dev-ed · SF-DEV-ORG`.
-Fora de um projeto Salesforce DX (sem `sfdx-project.json` acima do cwd), nada aparece.
+Outside a Salesforce DX project (no `sfdx-project.json` above the cwd), nothing shows.
 
-**Faixa de alerta:** quando a org alvo é produção, uma faixa `⚠ PRODUÇÃO` aparece acima do prompt,
-com **Trocar** (abre o painel) e **Ocultar** (some até o alvo mudar).
+**Warning band:** when the target org is production, a `⚠ PRODUCTION` band shows above the prompt,
+with **Switch** (opens the panel) and **Hide** (gone until the target changes).
 
-**Painel (`/og-sf-org`):** lista as orgs do projeto, com tipo, username e a info da org selecionada
-(edição, versão da API, pod, status da conexão, expiração e org id). Atalhos com o painel focado:
+**Panel (`/og-sf-org`):** lists the project's orgs with kind, username and the selected org's info
+(edition, API version, pod, connection status, expiration and org id). Keys with the panel focused:
 
-| Tecla | Ação |
+| Key | Action |
 | --- | --- |
-| `t` | Tornar alvo: `sf config set target-org=<alias>` no projeto |
-| `o` | Abrir no browser: `sf org open -o <username>` |
-| `i` | Atualizar info |
-| `e` | Editar lista: todas as orgs autenticadas, agrupadas por domínio, para marcar as do projeto |
-| `s` | Salvar lista |
-| `p` | Proteger / desproteger a org (em produção: rebaixar, digitando o alias) |
-| `r` | Restaurar produção numa org rebaixada |
+| `t` | Make target: `sf config set target-org=<alias>` in the project |
+| `o` | Open in browser: `sf org open -o <username>` |
+| `i` | Refresh info |
+| `e` | Edit list: every authenticated org, grouped by domain, to check the project's ones |
+| `s` | Save list |
+| `p` | Protect / unprotect the org (on production: downgrade, by typing the alias) |
+| `r` | Restore production on a downgraded org |
 
-`/og-sf-org <alias>` troca o alvo direto, sem abrir o painel.
+`/og-sf-org <alias>` switches the target directly, without opening the panel.
 
-## Guarda de orgs protegidas
+## Protected org guard
 
-Comandos de escrita que o Claude roda pela Bash tool, ou pela PowerShell tool no Windows, numa org
-protegida param para você confirmar.
-Isso não vale para o que você roda no seu próprio terminal.
+Write commands Claude runs through the Bash tool, or the PowerShell tool on Windows, against a
+protected org stop for you to confirm. This does not apply to what you run in your own terminal.
 
-**Níveis.** A marca é da org (username) e vale em todos os projetos.
+**Levels.** The mark belongs to the org (username) and holds in every project.
 
-| Nível | Como a org chega lá | Confirmação |
+| Level | How an org gets there | Confirmation |
 | --- | --- | --- |
-| Produção | Toda org classificada como produção, por padrão | Bip de alerta e diálogo sob uma faixa vermelha `⚠ PRODUÇÃO · ALIAS`. Só o alias digitado em *Other* autoriza; qualquer outra resposta, ou Esc, nega. Vale para um comando só. |
-| Protegida 🔒 | `p` no painel, ou automática numa sandbox cujo alias ou sufixo de username indique ambiente: uat, qa, stg, staging, preprod, full, partial (`auto`) | Diálogo: **Autorizar uma vez**, **Autorizar por 15 min** (só aquela org, nesta sessão; cai se a org alvo mudar) ou **Negar** |
-| Livre | O resto, ou `p` numa protegida | Nenhuma |
+| Production | Every org classified as production, by default | Alert beep and a dialog under a red `⚠ PRODUCTION · ALIAS` band. Only the alias typed under *Other* allows it; any other answer, or Esc, denies. Covers one command only. |
+| Protected 🔒 | `p` in the panel, or automatic on a sandbox whose alias or username suffix names an environment: uat, qa, stg, staging, preprod, full, partial (`auto`) | Dialog: **Allow once**, **Allow for 15 min** (that org only, this session; dropped if the target org changes) or **Deny** |
+| Free | The rest, or `p` on a protected one | None |
 
-Uma org de demo, SDO ou Trailhead Playground aparece como produção. `p` rebaixa (pede o alias digitado)
-e ela vira protegida, mostrada como `PROD↓`; `r` restaura. A status line mostra `🔒` nas protegidas.
+A demo, SDO or Trailhead Playground org shows as production. `p` downgrades it (asks for the typed
+alias) and it becomes protected, shown as `PROD↓`; `r` restores it. The status line shows `🔒` on
+protected orgs.
 
-**O que é escrita.** `sf project deploy start/quick/resume` (não `validate`, nem `--dry-run`),
-`project delete source`, `data create/update/delete/upsert/import/bulk`, `apex run` (não `apex run test`),
-`package install`, `org assign permset`, `org delete`, `api request rest` com método diferente de
-GET (`--method`/`-X`), `api request graphql`, e os equivalentes `sfdx force:*`. Leituras
-(`query`, `retrieve`, `org display/open`, logs) passam livres. A org vem de `-o`/`--target-org`
-(ou `-u`), sem diferenciar maiúsculas; sem flag, é a org alvo do projeto.
+**What counts as a write.** `sf project deploy start/quick/resume` (not `validate`, nor
+`--dry-run`), `project delete source`, `data create/update/delete/upsert/import/bulk`, `apex run`
+(not `apex run test`), `package install`, `org assign permset`, `org delete`, `api request rest`
+with a method other than GET (`--method`/`-X`), `api request graphql`, and the `sfdx force:*`
+equivalents. Reads (`query`, `retrieve`, `org display/open`, logs) pass freely. The org comes from
+`-o`/`--target-org` (or `-u`), case-insensitive; with no flag, it is the project's target org.
 
-**Caminhos indiretos.** A análise entra em comandos encadeados (`&&`, `;`, `|`, `$(...)`) e em
-`bash -c '...'`, `pwsh -Command`, `cmd /c`, e lê a sintaxe do PowerShell (caminhos com `\`,
-`& "...\sf.cmd"`, crase como escape e continuação de linha). Também pedem confirmação um comando que cite o alias, o username ou a URL de uma org
-protegida (um `curl` na REST API, por exemplo), e scripts do projeto com nome de deploy, push,
-release, data, seed, apex ou migrate (`npm run deploy:uat`, `./scripts/deploy.sh`) quando a org alvo
-é protegida. O system prompt lista as orgs protegidas do projeto e pede ao Claude que não contorne a guarda.
+**Indirect paths.** The parser follows chained commands (`&&`, `;`, `|`, `$(...)`) and
+`bash -c '...'`, `pwsh -Command`, `cmd /c`, and reads PowerShell syntax (paths with `\`,
+`& "...\sf.cmd"`, the backtick as escape and line continuation). A command that names the alias,
+username or URL of a protected org (a `curl` to the REST API, for instance) asks too, and so do
+project scripts named deploy, push, release, data, seed, apex or migrate (`npm run deploy:uat`,
+`./scripts/deploy.sh`) when the target org is protected. The system prompt lists the project's
+protected orgs and tells Claude not to work around the guard.
 
-**Quando ninguém pode responder** (`claude -p`, SDK), a escrita é negada. Se a guarda falhar ao
-decidir sobre um comando de escrita, ela nega (falha fechada). Os MCPs que escrevem em orgs ficam
-fora do escopo.
+**When nobody can answer** (`claude -p`, SDK), the write is denied. If the guard fails while
+deciding on a write command, it denies (fails closed). MCP servers that write to orgs are out of
+scope.
 
-**Windows.** Funciona igual, com uma diferença: o Claude Code não toca sons no Windows, então o
-alerta de produção é só visual. O home vem de `USERPROFILE` quando `HOME` não existe, e o mod roda o
-sf CLI via `cmd /c` (o `sf.cmd` precisa estar no PATH do processo do Claude para o painel mostrar
-info da org e trocar o alvo; a status line e a guarda leem os arquivos e não dependem disso).
+**Windows.** Works the same, with one difference: Claude Code plays no sounds on Windows, so the
+production alert is visual only. The home folder comes from `USERPROFILE` when `HOME` is unset, and
+the mod runs the sf CLI through `cmd /c` (`sf.cmd` must be on the Claude process's PATH for the
+panel to show org info and switch the target; the status line and the guard read files and do not
+depend on it).
 
-## De onde vêm as orgs do projeto
+## Where the project's orgs come from
 
-1. **Lista salva:** guardada no store do mod (no seu usuário), indexada pelo caminho do projeto.
-   Nada é escrito no repo do cliente.
-2. **Inferida:** sem lista salva, o painel mostra a org alvo e as outras orgs autenticadas do mesmo
-   domínio de username (`@globex.com.globexdev` e `@globex.com.globexqa` → `globex.com`). Domínios
-   genéricos de scratch (`example.com`) ficam de fora. Um clique em **Salvar lista** fixa o resultado.
+1. **Saved list:** kept in the mod's store (in your user), keyed by the project path. Nothing is
+   written to the client's repo.
+2. **Inferred:** with no saved list, the panel shows the target org and the other authenticated
+   orgs of the same username domain (`@globex.com.globexdev` and `@globex.com.globexqa` →
+   `globex.com`). Generic scratch domains (`example.com`) are left out. **Save list** pins the result.
 
-## Resolução da org alvo
+## Resolving the target org
 
-Segue a ordem de precedência do sf CLI: `SF_TARGET_ORG` (ou `SFDX_DEFAULTUSERNAME`) do processo do
-Claude, depois o `.sf/config.json` do projeto, depois o global `~/.sf/config.json`. Os arquivos
-legados `.sfdx/sfdx-config.json` também são lidos. Aliases vêm de `~/.sfdx/alias.json`. O tipo da
-org vem do auth file `~/.sfdx/<username>.json`: usa `isScratch`/`isSandbox` e, quando faltam, deduz
-pela URL.
+Follows the sf CLI's precedence: `SF_TARGET_ORG` (or `SFDX_DEFAULTUSERNAME`) in Claude's process,
+then the project's `.sf/config.json`, then the global `~/.sf/config.json`. The legacy
+`.sfdx/sfdx-config.json` files are read too. Aliases come from `~/.sfdx/alias.json`. The org kind
+comes from the auth file `~/.sfdx/<username>.json`: it uses `isScratch`/`isSandbox` and, when they
+are missing, infers from the URL.
 
-A status line atualiza no início da sessão, depois de cada comando `sf`/`sfdx` da Bash ou PowerShell tool e a cada
-15 s (pega mudanças feitas em outro terminal).
+The status line refreshes at session start, after each `sf`/`sfdx` command of the Bash or
+PowerShell tool, and every 15 s (catching changes made in another terminal).
 
-Orgs de demo, SDO e Trailhead Playground aparecem como PROD ou dev-ed, porque tecnicamente são orgs
-de produção.
+Demo, SDO and Trailhead Playground orgs show as PROD or dev-ed, because technically they are
+production orgs.

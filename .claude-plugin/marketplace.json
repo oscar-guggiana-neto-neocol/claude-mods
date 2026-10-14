@@ -1,6 +1,6 @@
 {
   "name": "oscar-claude-mods",
-  "description": "Mods pessoais do Oscar para o Claude Code, para uso geral em todos os projetos",
+  "description": "Oscar's personal Claude Code mods, for general use across projects",
   "owner": {
     "name": "Oscar Guggiana"
   },
@@ -8,17 +8,17 @@
     {
       "name": "og-sf-org-status",
       "source": "./mods/og-sf-org-status",
-      "description": "Status line com a org Salesforce alvo do projeto e guarda de escrita em orgs protegidas e produção"
+      "description": "Status line with the project's target Salesforce org, and a write guard for protected and production orgs"
     },
     {
       "name": "og-focus-mode",
       "source": "./mods/og-focus-mode",
-      "description": "Modo foco: interface do terminal mais limpa, alternada com /og-foco"
+      "description": "Focus mode: a cleaner terminal interface, toggled with /og-focus"
     },
     {
       "name": "og-themes",
       "source": "./mods/og-themes",
-      "description": "Temas Neocol e LaGana Lion (dark e light), escolhidos por projeto com /og-tema e trocados ao vivo"
+      "description": "Neocol and LaGana Lion themes (dark and light), picked per project with /og-theme and switched live"
     }
   ]
 }

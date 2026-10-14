@@ -1,34 +1,37 @@
 # claude-mods
 
-Mods do Claude Code, um por pasta em `mods/`. O repo é também um marketplace
-(`.claude-plugin/marketplace.json`), então cada mod se instala no escopo do usuário
-e passa a valer em todos os projetos.
+Claude Code mods, one per folder in `mods/`. The repo is also a marketplace
+(`.claude-plugin/marketplace.json`), so each mod installs at user scope and applies to every
+project.
 
-| Mod | Tipo | O que faz |
+| Mod | Kind | What it does |
 | --- | --- | --- |
-| [og-sf-org-status](mods/og-sf-org-status) | status line, painel, faixa, `/og-sf-org` | Org Salesforce alvo à vista, troca entre as orgs do projeto e guarda de escrita em orgs protegidas e produção |
-| [og-focus-mode](mods/og-focus-mode) | render hooks, `/og-foco` | Interface mais limpa: ferramentas em uma linha, resultados só em erro, sem rodapés de turno |
-| [og-themes](mods/og-themes) | temas, painel, `/og-tema` | Temas Neocol e LaGana Lion, dark e light, por projeto, trocados ao vivo por número |
+| [og-sf-org-status](mods/og-sf-org-status) | status line, panel, band, `/og-sf-org` | The target Salesforce org in sight, switching between the project's orgs, and a write guard for protected and production orgs |
+| [og-focus-mode](mods/og-focus-mode) | render hooks, `/og-focus` | A cleaner interface: tools on one line, results only on error, no turn footers |
+| [og-themes](mods/og-themes) | themes, panel, `/og-theme` | Neocol and LaGana Lion themes, dark and light, per project, switched live by number |
 
-## Instalar (uma vez)
+## Install
 
 ```sh
-claude plugin marketplace add ~/Documents/Coding/claude-mods
+claude plugin marketplace add oscar-guggiana-neto-neocol/claude-mods
 claude plugin install og-sf-org-status@oscar-claude-mods --scope user
 claude plugin install og-focus-mode@oscar-claude-mods --scope user
 claude plugin install og-themes@oscar-claude-mods --scope user
 ```
 
-O marketplace é uma pasta local e cada `source` é um caminho relativo, então o
-Claude Code lê os mods direto daqui. Depois de editar um mod, rode `/reload-plugins`
-na sessão. Não precisa reinstalar.
+Use `--scope project` to enable a mod for one project only. To update:
+`claude plugin marketplace update oscar-claude-mods`, then `claude plugin update <mod>@oscar-claude-mods`.
 
-## Desenvolver
+When developing, add the local clone instead (`claude plugin marketplace add ~/Documents/Coding/claude-mods`):
+each `source` is a relative path, so Claude Code reads the mods straight from the folder. After
+editing a mod, run `/reload-plugins` in the session; no reinstall needed.
+
+## Develop
 
 ```sh
-claude --plugin-dir mods/<mod> --debug   # recarrega a cada save
-scripts/check.sh                         # valida o marketplace, valida e testa todos os mods
+claude --plugin-dir mods/<mod> --debug   # reloads on every save
+scripts/check.sh                         # validates the marketplace, validates and tests every mod
 ```
 
-Um mod novo precisa de `mods/<nome>/.claude-plugin/plugin.json`, `hooks/hooks.json`
-e o hooks module, além de uma entrada em `.claude-plugin/marketplace.json`.
+A new mod needs `mods/<name>/.claude-plugin/plugin.json`, `hooks/hooks.json` and the hooks module,
+plus an entry in `.claude-plugin/marketplace.json`.

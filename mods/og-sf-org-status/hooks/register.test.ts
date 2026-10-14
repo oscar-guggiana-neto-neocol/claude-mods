@@ -82,7 +82,7 @@ const world = (on: On, files: Record<string, string>, env: Record<string, string
   on('ui.open', () => ({ value: { isPlaced: true } }))
 
   // What another mod draws in the band, beneath this one.
-  on('ui.render', { component: 'AbovePrompt' }, $ => ({ type: 'Text', props: {}, children: ['outro mod'] }))
+  on('ui.render', { component: 'AbovePrompt' }, $ => ({ type: 'Text', props: {}, children: ['another mod'] }))
 
   return { statuses, commands, store }
 }
@@ -239,8 +239,8 @@ describe('plugin', () => {
     const { text } = await $.command.run({ command: 'og-sf-org', ...RUN })
 
     expect(statuses).toEqual(['SF 🔴 PROD · acme'])
-    expect(text).toContain('Org alvo: acme (production)')
-    expect(text).toContain('.sf/config.json do projeto')
+    expect(text).toContain('Target org: acme (production)')
+    expect(text).toContain("the project's .sf/config.json")
   })
 
   test('the pane lists the inferred orgs and switches the target', async ($, on) => {
@@ -252,7 +252,7 @@ describe('plugin', () => {
 
     for (const surface of ['terminal', 'desktop'] as const) {
       const ui = await $.ui.mount({ ...PANE, surface })
-      expect(await ui.find({ text: /lista inferida/ })).toBeDefined()
+      expect(await ui.find({ text: /list inferred/ })).toBeDefined()
       expect(await ui.find({ key: 'row:me@globex.com.globexqa' })).toBeDefined()
       expect(await ui.find({ key: 'row:me@acme.com' })).toBeUndefined()
       expect(await ui.find({ text: /Enterprise Edition · API 68.0 · pod NA1/ })).toBeDefined()
@@ -265,7 +265,7 @@ describe('plugin', () => {
 
     expect(commands).toContainEqual(['sf', 'config', 'set', 'target-org=globexqa', '--json'])
     expect(statuses.at(-1)).toBe('SF 🟡🔒 sandbox · globexqa')
-    expect(await ui.find({ text: /Org alvo agora: globexqa/ })).toBeDefined()
+    expect(await ui.find({ text: /Target org now: globexqa/ })).toBeDefined()
   })
 
   test('editing the list saves it for the project', async ($, on) => {
@@ -276,12 +276,12 @@ describe('plugin', () => {
     await $.command.run({ command: 'og-sf-org', ...RUN })
     const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
     await ui.press({ key: 'edit' })
-    expect(await ui.find({ text: /Enter marca\/desmarca/ })).toBeDefined()
+    expect(await ui.find({ text: /Enter checks\/unchecks/ })).toBeDefined()
     await ui.press({ key: 'check:me@globex.com.globexqa' })
     await ui.press({ key: 'save' })
 
     expect(store.get(`project:${PROJECT}`)).toEqual(['me@globex.com.globexdev'])
-    expect(await ui.find({ text: /lista salva/ })).toBeDefined()
+    expect(await ui.find({ text: /saved list/ })).toBeDefined()
     expect(await ui.find({ key: 'row:me@globex.com.globexqa' })).toBeUndefined()
   })
 
@@ -292,7 +292,7 @@ describe('plugin', () => {
 
     const { text } = await $.command.run({ command: 'og-sf-org', ...RUN, args: 'globexqa' })
 
-    expect(text).toBe('Org alvo agora: globexqa')
+    expect(text).toBe('Target org now: globexqa')
     expect(commands).toContainEqual(['sf', 'config', 'set', 'target-org=globexqa', '--json'])
   })
 
@@ -309,11 +309,11 @@ describe('plugin', () => {
       props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 100, scroll: { offset: 0, bodyRows: 10 }, view: {} },
     })
 
-    expect(await band.find({ text: /PRODUÇÃO/ })).toBeDefined()
-    expect(await band.find({ text: 'outro mod' })).toBeDefined()
+    expect(await band.find({ text: /PRODUCTION/ })).toBeDefined()
+    expect(await band.find({ text: 'another mod' })).toBeDefined()
     await band.press({ key: 'hide' })
-    expect(await band.find({ text: /PRODUÇÃO/ })).toBeUndefined()
-    expect(await band.find({ text: 'outro mod' })).toBeDefined()
+    expect(await band.find({ text: /PRODUCTION/ })).toBeUndefined()
+    expect(await band.find({ text: 'another mod' })).toBeDefined()
   })
 })
 
@@ -348,11 +348,11 @@ describe('guard', () => {
     const files = baseFiles()
     files[`${PROJECT}/.sf/config.json`] = JSON.stringify({ 'target-org': 'globexdev' })
     world(on, files)
-    const { ran, asked } = shell(on, ['Negar', 'Autorizar uma vez', 'Autorizar por 15 min'])
+    const { ran, asked } = shell(on, ['Deny', 'Allow once', 'Allow for 15 min'])
 
     const denied = await $.tool.call(bash('sf project deploy start -d force-app -o globexqa'))
     expect(denied.deny).toContain('Do not retry')
-    expect(asked[0]).toContain('globexqa é uma org protegida')
+    expect(asked[0]).toContain('globexqa is a protected org')
     expect(ran).toEqual([])
 
     await $.tool.call(bash('sf project deploy start -d force-app -o globexqa'))
@@ -366,7 +366,7 @@ describe('guard', () => {
     const files = baseFiles()
     files[`${PROJECT}/.sf/config.json`] = JSON.stringify({ 'target-org': 'globexdev' })
     world(on, files)
-    const { ran, asked } = shell(on, ['Negar', 'Negar'])
+    const { ran, asked } = shell(on, ['Deny', 'Deny'])
     const ps = (command: string) => ({ tool: 'PowerShell', command }) as never
 
     const update = '$env:PATH = "C:\\nodejs;" + $env:PATH\nsf data update record -s Product2 -i 01t -o GLOBEXQA --values $arg'
@@ -374,7 +374,7 @@ describe('guard', () => {
     const patch = 'sf api request rest "/services/data/v68.0/sobjects/Product2/01t" --method PATCH --body b.json -o globexqa'
     expect((await $.tool.call(ps(patch))).deny).toContain('Do not retry')
     expect(asked).toHaveLength(2)
-    expect(asked[1]).toContain('chamada de API que escreve')
+    expect(asked[1]).toContain('API call that writes')
     expect(ran).toEqual([])
   })
 
@@ -396,10 +396,10 @@ describe('guard', () => {
     const files = baseFiles()
     files[`${PROJECT}/.sf/config.json`] = JSON.stringify({ 'target-org': 'acme' })
     world(on, files)
-    const { ran, asked } = shell(on, ['acme', 'acm', 'Negar'])
+    const { ran, asked } = shell(on, ['acme', 'acm', 'Deny'])
 
     expect((await $.tool.call(bash('sf data delete record -s Account -i 001'))).deny).toBeUndefined()
-    expect(asked[0]).toContain('Digite "acme" em Other para autorizar escrita de dados (DML) em PRODUÇÃO')
+    expect(asked[0]).toContain('Type "acme" under Other to allow data write (DML) in PRODUCTION')
     expect(ran).toHaveLength(1)
 
     expect((await $.tool.call(bash('sf project deploy start'))).deny).toContain('PRODUCTION')
@@ -423,12 +423,12 @@ describe('guard', () => {
     const files = baseFiles()
     files[`${PROJECT}/.sf/config.json`] = JSON.stringify({ 'target-org': 'globexdev' })
     world(on, files)
-    const { asked } = shell(on, ['Negar'])
+    const { asked } = shell(on, ['Deny'])
 
     const refused = await $.tool.call(bash('curl -X PATCH https://globex--globexqa.sandbox.my.salesforce.com/services/data'))
 
     expect(refused.deny).toBeDefined()
-    expect(asked[0]).toContain('comando que cita a org')
+    expect(asked[0]).toContain('command naming the org')
   })
 
   test('the panel protects, unprotects and downgrades production by its typed alias', async ($, on) => {
@@ -448,7 +448,7 @@ describe('guard', () => {
     await ui.press({ key: 'row:me@acme.com' })
     await ui.press({ key: 'protect' })
     await ui.input({ key: 'downgrade', text: 'nope' })
-    expect(await ui.find({ text: /continua PRODUÇÃO/ })).toBeDefined()
+    expect(await ui.find({ text: /stays PRODUCTION/ })).toBeDefined()
 
     await ui.press({ key: 'protect' })
     await ui.input({ key: 'downgrade', text: 'acme' })

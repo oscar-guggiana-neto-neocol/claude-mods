@@ -28,13 +28,13 @@ const POLL_MS = 15_000
 // sf/sfdx commands that can change the target org or its auth.
 const SF_COMMAND = /(^|[\s;&|(\\/])(sf|sfdx)(\.cmd|\.exe)?\s/i
 const ORG_QUERY = 'SELECT OrganizationType, InstanceName, TrialExpirationDate FROM Organization'
-const PROD_HEADER = '⚠ PRODUÇÃO'
+const PROD_HEADER = '⚠ PRODUCTION'
 const PROTECTION_KEY = 'protection'
 const WINDOW_MS = 15 * 60_000
 const CATALOG_MS = 15_000
-const ONCE = 'Autorizar uma vez'
-const FOR_A_WHILE = 'Autorizar por 15 min'
-const DENY = 'Negar'
+const ONCE = 'Allow once'
+const FOR_A_WHILE = 'Allow for 15 min'
+const DENY = 'Deny'
 
 const current = atom({ plugin: 'og-sf-org-status', key: 'current' } as const, null)
 const panel = atom({ plugin: 'og-sf-org-status', key: 'panel' } as const, null)
@@ -167,7 +167,7 @@ function sectionFor(rows: OrgRow[], marks: Record<string, Override>) {
     .filter(({ guard }) => guard.level !== 'free')
   if (guarded.length === 0) return undefined
   const list = guarded
-    .map(({ row, guard }) => `${nameOf(row)} (${row.username}, ${guard.level === 'production' ? 'PRODUÇÃO' : 'protegida'})`)
+    .map(({ row, guard }) => `${nameOf(row)} (${row.username}, ${guard.level === 'production' ? 'PRODUCTION' : 'protected'})`)
     .join('; ')
 
   return [
@@ -231,7 +231,7 @@ async function loadInfo($: EngineInterface, username: string) {
     run(['data', 'query', '-o', username, '-q', ORG_QUERY, '--json']),
   ])
   const found: OrgInfo =
-    display === undefined ? { status: 'error', message: 'sf CLI não encontrado ou sem resposta' } : parseInfo(display, query)
+    display === undefined ? { status: 'error', message: 'sf CLI not found or not responding' } : parseInfo(display, query)
   await update($, info, all => ({ ...all, [username]: found }))
 }
 
@@ -244,30 +244,30 @@ async function select($: EngineInterface, username: string) {
 async function makeTarget($: EngineInterface, row: OrgRow) {
   const shown = await read($, panel)
   if (shown === null) return
-  await update($, message, () => `Definindo ${nameOf(row)} como org alvo…`)
+  await update($, message, () => `Setting ${nameOf(row)} as the target org…`)
   const ran = await runSf($, ['config', 'set', `target-org=${nameOf(row)}`, '--json'], { cwd: shown.root })
     .catch(error => ({ exitCode: 1, stdout: '', stderr: String(error) }))
   if (ran.exitCode !== 0) {
     const reason = parse<{ message?: string }>(ran.stdout)?.message ?? firstLine(ran.stderr)
-    await update($, message, () => `Falhou: ${reason}`)
+    await update($, message, () => `Failed: ${reason}`)
     return
   }
   const org = await refresh($)
   await update($, message, () =>
     org?.source === 'env'
-      ? `Salvo no projeto, mas SF_TARGET_ORG (${org.target}) continua tendo precedência.`
-      : `Org alvo agora: ${nameOf(row)}`,
+      ? `Saved in the project, but SF_TARGET_ORG (${org.target}) still takes precedence.`
+      : `Target org now: ${nameOf(row)}`,
   )
 }
 
 async function openInBrowser($: EngineInterface, row: OrgRow) {
-  await update($, message, () => `Abrindo ${nameOf(row)} no browser…`)
+  await update($, message, () => `Opening ${nameOf(row)} in the browser…`)
   const ran = await runSf($, ['org', 'open', '-o', row.username, '--json'], { timeoutMs: 60_000 })
     .catch(error => ({ exitCode: 1, stdout: '', stderr: String(error) }))
   await update($, message, () =>
     ran.exitCode === 0
-      ? `${nameOf(row)} aberta no browser.`
-      : `Falhou: ${parse<{ message?: string }>(ran.stdout)?.message ?? firstLine(ran.stderr)}`,
+      ? `${nameOf(row)} opened in the browser.`
+      : `Failed: ${parse<{ message?: string }>(ran.stdout)?.message ?? firstLine(ran.stderr)}`,
   )
 }
 
@@ -276,15 +276,15 @@ async function saveList($: EngineInterface, usernames: string[]) {
   if (shown === null) return
   await $.store.set(projectKey(shown.root), usernames)
   await update($, editing, () => null)
-  await update($, message, () => `Lista salva: ${usernames.length} org(s) para ${shown.name}.`)
+  await update($, message, () => `List saved: ${usernames.length} org(s) for ${shown.name}.`)
   await loadPanel($)
 }
 
 async function switchTo($: EngineInterface, name: string) {
   const loaded = await loadPanel($)
-  if (loaded === undefined) return 'Fora de um projeto Salesforce DX.'
+  if (loaded === undefined) return 'Outside a Salesforce DX project.'
   const row = loaded.catalog.find(one => one.alias === name || one.username === name)
-  if (row === undefined) return `Nenhuma org autenticada com alias ou username "${name}".`
+  if (row === undefined) return `No authenticated org with alias or username "${name}".`
   await makeTarget($, row)
 
   return (await read($, message)) ?? ''
@@ -332,7 +332,7 @@ async function hitsOf($: EngineInterface, command: string, shell: Shell): Promis
     if (row !== undefined) add(row, OPERATION_LABEL[write.operation], write.text)
   }
   for (const text of others) {
-    for (const row of catalog) if (mentions(text, row)) add(row, 'comando que cita a org', text)
+    for (const row of catalog) if (mentions(text, row)) add(row, 'command naming the org', text)
   }
 
   return [...hits.values()].sort((a, b) => Number(b.guard.level === 'production') - Number(a.guard.level === 'production'))
@@ -348,8 +348,8 @@ async function askProtected($: EngineInterface, hit: Hit): Promise<string | unde
   const until = windows.get(hit.row.username)
   if (until !== undefined && until > Date.now()) return undefined
   const question =
-    `${LOCK} ${nameOf(hit.row)} é uma org protegida. ${hit.operations.join(', ')}: ` +
-    `${hit.commands.join(' ; ')} — autorizar?`
+    `${LOCK} ${nameOf(hit.row)} is a protected org. ${hit.operations.join(', ')}: ` +
+    `${hit.commands.join(' ; ')} — allow?`
   const answer = await $.ui
     .ask(question, { header: `${LOCK} Org`, options: [ONCE, FOR_A_WHILE, DENY] })
     .catch(() => undefined)
@@ -374,9 +374,9 @@ async function askProduction($: EngineInterface, hit: Hit): Promise<string | und
     command: hit.commands.join('\n'),
   }))
   const answer = await $.ui
-    .ask(`Digite "${name}" em Other para autorizar ${hit.operations.join(', ')} em PRODUÇÃO. Autorizar?`, {
+    .ask(`Type "${name}" under Other to allow ${hit.operations.join(', ')} in PRODUCTION. Allow?`, {
       header: PROD_HEADER,
-      options: [DENY, 'Cancelar'],
+      options: [DENY, 'Cancel'],
     })
     .catch(() => undefined)
   await update($, prodAsk, () => null)
@@ -400,23 +400,23 @@ async function guard($: EngineInterface, command: string, shell: Shell): Promise
 async function downgrade($: EngineInterface, row: OrgRow, typed: string) {
   await update($, downgrading, () => null)
   if (typed.trim() !== nameOf(row) && typed.trim() !== row.username) {
-    await update($, message, () => `Falhou: o nome digitado não confere; ${nameOf(row)} continua PRODUÇÃO.`)
+    await update($, message, () => `Failed: the typed name does not match; ${nameOf(row)} stays PRODUCTION.`)
     return
   }
   await setOverride($, row.username, 'protected')
-  await update($, message, () => `${nameOf(row)} rebaixada: agora é protegida (r restaura produção).`)
+  await update($, message, () => `${nameOf(row)} downgraded: now protected (r restores production).`)
 }
 
 function infoLine(found: OrgInfo | undefined) {
-  if (found === undefined || found.status === 'loading') return 'carregando info…'
-  if (found.status === 'error') return `info indisponível: ${found.message}`
+  if (found === undefined || found.status === 'loading') return 'loading info…'
+  if (found.status === 'error') return `info unavailable: ${found.message}`
 
   return [
     found.edition,
     found.apiVersion && `API ${found.apiVersion}`,
     found.pod && `pod ${found.pod}`,
     found.connectedStatus,
-    found.expires && `expira ${found.expires}`,
+    found.expires && `expires ${found.expires}`,
     found.orgId,
   ]
     .filter(Boolean)
@@ -430,7 +430,7 @@ export const register: Register = on => {
     const started = await next(e)
     await $.command.register({
       name: COMMAND,
-      description: 'Painel de orgs Salesforce do projeto (ou /og-sf-org <alias> para trocar)',
+      description: "The project's Salesforce orgs panel (or /og-sf-org <alias> to switch)",
       argumentHint: '[alias]',
     })
     await loadProtection($)
@@ -448,7 +448,7 @@ export const register: Register = on => {
     await openPanel($)
 
     return { text: explain(await refresh($)) }
-  }).catch(() => ({ text: 'og-sf-org-status: não consegui ler a configuração do sf CLI.' }))
+  }).catch(() => ({ text: 'og-sf-org-status: could not read the sf CLI configuration.' }))
 
   // Every shell tool: Bash, and PowerShell on Windows.
   on('tool.call', async ($, e, next) => {
@@ -495,16 +495,16 @@ export const register: Register = on => {
       <Box flexDirection="column">
         <Box backgroundColor="error" paddingX={1} flexDirection="column">
           <Text color="inverseText" bold>
-            {`⚠ ⚠ ⚠  PRODUÇÃO · ${ask.name.toUpperCase()}  ⚠ ⚠ ⚠`}
+            {`⚠ ⚠ ⚠  PRODUCTION · ${ask.name.toUpperCase()}  ⚠ ⚠ ⚠`}
           </Text>
-          <Text color="inverseText">O Claude quer fazer {ask.operation} numa org de PRODUÇÃO.</Text>
+          <Text color="inverseText">Claude wants to run {ask.operation} on a PRODUCTION org.</Text>
         </Box>
         <Box flexDirection="column" marginY={1}>
           <Text>
             Org: <Text bold>{ask.name}</Text> <Text dimColor>{ask.username}</Text>
           </Text>
           <Text color="error">{ask.command}</Text>
-          <Text dimColor>Só o alias digitado em Other autoriza. Qualquer outra resposta nega.</Text>
+          <Text dimColor>Only the alias typed under Other allows it. Any other answer denies.</Text>
         </Box>
         {drawn}
       </Box>
@@ -530,7 +530,7 @@ export const register: Register = on => {
     if (shownPanel === null) {
       return (
         <Box flexDirection="column">
-          <Text dimColor>Fora de um projeto Salesforce DX (nenhum sfdx-project.json acima do diretório).</Text>
+          <Text dimColor>Outside a Salesforce DX project (no sfdx-project.json above the directory).</Text>
         </Box>
       )
     }
@@ -538,14 +538,14 @@ export const register: Register = on => {
     if (checked !== null) {
       const groups = new Map<string, OrgRow[]>()
       for (const row of shownPanel.catalog) {
-        const group = row.domain ?? 'outros'
+        const group = row.domain ?? 'other'
         groups.set(group, [...(groups.get(group) ?? []), row])
       }
 
       return (
         <Box flexDirection="column">
-          <Text bold>Orgs do projeto {shownPanel.name}: marque as que pertencem a ele</Text>
-          <Text dimColor>Tab navega · Enter marca/desmarca · s salva · c cancela</Text>
+          <Text bold>Orgs of project {shownPanel.name}: check the ones that belong to it</Text>
+          <Text dimColor>Tab moves · Enter checks/unchecks · s saves · c cancels</Text>
           {[...groups].map(([group, rows]) => (
             <Box key={`group:${group}`} flexDirection="column" marginTop={1}>
               <Text dimColor>{group}</Text>
@@ -570,8 +570,8 @@ export const register: Register = on => {
             </Box>
           ))}
           <Box marginTop={1} gap={1}>
-            <Button key="save" label={`Salvar (${checked.length})`} hotkey="s" variant="primary" onPress={() => saveList($, checked)} />
-            <Button key="cancel" label="Cancelar" hotkey="c" onPress={() => update($, editing, () => null)} />
+            <Button key="save" label={`Save (${checked.length})`} hotkey="s" variant="primary" onPress={() => saveList($, checked)} />
+            <Button key="cancel" label="Cancel" hotkey="c" onPress={() => update($, editing, () => null)} />
           </Box>
         </Box>
       )
@@ -584,23 +584,23 @@ export const register: Register = on => {
       return (
         <Box flexDirection="column">
           <Text color="error" bold>
-            Rebaixar {nameOf(row)}: ela é classificada como PRODUÇÃO.
+            Downgrade {nameOf(row)}: it is classified as PRODUCTION.
           </Text>
-          <Text>Só faça isso se ela não for produção real (demo, SDO, Trailhead Playground). Ela fica protegida.</Text>
+          <Text>Only do this if it is not real production (demo, SDO, Trailhead Playground). It stays protected.</Text>
           {Input && (
             <Box marginTop={1}>
               <Input
                 key="downgrade"
-                label={`Digite ${nameOf(row)} para confirmar: `}
+                label={`Type ${nameOf(row)} to confirm: `}
                 placeholder={nameOf(row)}
-                submitLabel="rebaixar"
+                submitLabel="downgrade"
                 autoFocus
                 onSubmit={(value: string) => downgrade($, row, value)}
               />
             </Box>
           )}
           <Box marginTop={1}>
-            <Button key="cancel-downgrade" label="Cancelar" hotkey="c" onPress={() => update($, downgrading, () => null)} />
+            <Button key="cancel-downgrade" label="Cancel" hotkey="c" onPress={() => update($, downgrading, () => null)} />
           </Box>
         </Box>
       )
@@ -612,18 +612,18 @@ export const register: Register = on => {
           <Text bold>{shownPanel.name}</Text>{' '}
           <Text dimColor>
             {shownPanel.listSource === 'saved'
-              ? '· lista salva'
-              : '· lista inferida pelo domínio do username (não salva)'}
+              ? '· saved list'
+              : "· list inferred from the username's domain (not saved)"}
           </Text>
         </Text>
         <Box flexDirection="column" marginTop={1}>
-          {shownPanel.orgs.length === 0 && <Text dimColor>Nenhuma org. Use Editar lista.</Text>}
+          {shownPanel.orgs.length === 0 && <Text dimColor>No orgs. Use Edit list.</Text>}
           {shownPanel.orgs.map(one => (
             <Button key={`row:${one.username}`} plain onPress={() => select($, one.username)}>
               {one.username === row?.username ? '›' : ' '} {badgeOf(one.kind, guardOf(one))} <Text bold>{nameOf(one)}</Text>{' '}
               <Text dimColor>{one.username}</Text>
               {guardOf(one).isAuto ? <Text dimColor> (auto)</Text> : ''}
-              {one.username === target?.username ? <Text color="success"> ← alvo</Text> : ''}
+              {one.username === target?.username ? <Text color="success"> ← target</Text> : ''}
             </Button>
           ))}
         </Box>
@@ -634,19 +634,19 @@ export const register: Register = on => {
         )}
         <Box marginTop={1} gap={1} flexWrap="wrap">
           {row && row.username !== target?.username && (
-            <Button key="target" label="Tornar alvo" hotkey="t" variant="primary" onPress={() => makeTarget($, row)} />
+            <Button key="target" label="Make target" hotkey="t" variant="primary" onPress={() => makeTarget($, row)} />
           )}
-          {row && <Button key="open" label="Abrir no browser" hotkey="o" onPress={() => openInBrowser($, row)} />}
-          {row && <Button key="info" label="Atualizar info" hotkey="i" onPress={() => loadInfo($, row.username)} />}
+          {row && <Button key="open" label="Open in browser" hotkey="o" onPress={() => openInBrowser($, row)} />}
+          {row && <Button key="info" label="Refresh info" hotkey="i" onPress={() => loadInfo($, row.username)} />}
           {row && rowGuard && (
             <Button
               key="protect"
               label={
                 rowGuard.level === 'production'
-                  ? 'Rebaixar produção'
+                  ? 'Downgrade production'
                   : rowGuard.level === 'protected'
-                    ? 'Desproteger'
-                    : 'Proteger'
+                    ? 'Unprotect'
+                    : 'Protect'
               }
               hotkey="p"
               onPress={() =>
@@ -657,21 +657,21 @@ export const register: Register = on => {
             />
           )}
           {row && rowGuard?.isDowngraded && (
-            <Button key="restore" label="Restaurar produção" hotkey="r" onPress={() => setOverride($, row.username, undefined)} />
+            <Button key="restore" label="Restore production" hotkey="r" onPress={() => setOverride($, row.username, undefined)} />
           )}
           <Button
             key="edit"
-            label="Editar lista"
+            label="Edit list"
             hotkey="e"
             onPress={() => update($, editing, () => shownPanel.orgs.map(one => one.username))}
           />
           {shownPanel.listSource === 'inferred' && shownPanel.orgs.length > 0 && (
-            <Button key="keep" label="Salvar lista" hotkey="s" onPress={() => saveList($, shownPanel.orgs.map(one => one.username))} />
+            <Button key="keep" label="Save list" hotkey="s" onPress={() => saveList($, shownPanel.orgs.map(one => one.username))} />
           )}
         </Box>
         {note && (
           <Box marginTop={1}>
-            <Text color={note.startsWith('Falhou') ? 'error' : 'suggestion'}>{note}</Text>
+            <Text color={note.startsWith('Failed') ? 'error' : 'suggestion'}>{note}</Text>
           </Box>
         )}
       </Box>
@@ -692,13 +692,13 @@ export const register: Register = on => {
       <Box flexDirection="column">
         <Box gap={1}>
           <Text color="error" bold>
-            ⚠ PRODUÇÃO
+            ⚠ PRODUCTION
           </Text>
           <Text>
-            org alvo: <Text bold>{nameOf(target)}</Text> <Text dimColor>{target.username}</Text>
+            target org: <Text bold>{nameOf(target)}</Text> <Text dimColor>{target.username}</Text>
           </Text>
-          <Button key="switch" label="Trocar" onPress={() => openPanel($)} />
-          <Button key="hide" label="Ocultar" onPress={() => update($, bandDismissed, () => target.username)} />
+          <Button key="switch" label="Switch" onPress={() => openPanel($)} />
+          <Button key="hide" label="Hide" onPress={() => update($, bandDismissed, () => target.username)} />
         </Box>
         {rest}
       </Box>

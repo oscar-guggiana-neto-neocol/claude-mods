@@ -3,7 +3,7 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import { compactLine } from './compact'
 
-const COMMAND = 'og-foco'
+const COMMAND = 'og-focus'
 const STORE_KEY = 'isOn'
 
 const isOn = atom({ plugin: 'og-focus-mode', key: 'isOn' } as const, false)
@@ -24,7 +24,7 @@ async function toggle($: EngineInterface) {
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const started = await next(e)
-    await $.command.register({ name: COMMAND, description: 'Liga ou desliga o modo foco: interface mais limpa' })
+    await $.command.register({ name: COMMAND, description: 'Turns focus mode on or off: a cleaner interface' })
     const [stored, dir] = await Promise.all([$.store.get(STORE_KEY), $.session.cwd()])
     await update($, isOn, () => stored === true)
     await update($, cwd, () => dir)
@@ -35,8 +35,8 @@ export const register: Register = on => {
   on('command.run', { command: COMMAND }, async $ => {
     const isNowOn = await toggle($)
 
-    return { text: isNowOn ? 'Modo foco ligado.' : 'Modo foco desligado.' }
-  }).catch(() => ({ text: 'og-focus-mode: não consegui alternar o modo.' }))
+    return { text: isNowOn ? 'Focus mode on.' : 'Focus mode off.' }
+  }).catch(() => ({ text: 'og-focus-mode: could not toggle the mode.' }))
 
   // A tool call: one dim line; an error or an interruption keeps the full row.
   on('ui.render', { component: 'ToolUse' }, async ($, e, next) => {
@@ -83,6 +83,6 @@ export const register: Register = on => {
   on('ui.render', { component: 'SessionMode' }, async ($, e, next) => {
     if (!(await read($, isOn))) return next(e)
 
-    return next({ ...e, props: { ...e.props, modes: [...e.props.modes, 'og-foco'] } })
+    return next({ ...e, props: { ...e.props, modes: [...e.props.modes, 'og-focus'] } })
   })
 }
