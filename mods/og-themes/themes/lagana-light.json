@@ -1,0 +1,26 @@
+{
+  "name": "LaGana Lion Light",
+  "base": "light",
+  "overrides": {
+    "claude": "#E8473A",
+    "claudeShimmer": "#EE6C61",
+    "text": "#1D2939",
+    "subtle": "#98A2B3",
+    "inactive": "#475467",
+    "suggestion": "#2F88C8",
+    "permission": "#1F6899",
+    "permissionShimmer": "#52A3D6",
+    "remember": "#C9A000",
+    "success": "#1C8A4A",
+    "error": "#C93A2E",
+    "warning": "#C9A000",
+    "promptBorder": "#344563",
+    "promptBorderShimmer": "#4A6080",
+    "planMode": "#1F6899",
+    "autoAccept": "#C9A000",
+    "bashBorder": "#E8473A",
+    "userMessageBackground": "#EAECF0",
+    "userMessageBackgroundHover": "#D0D5DD",
+    "selectionBg": "#D0D5DD"
+  }
+}

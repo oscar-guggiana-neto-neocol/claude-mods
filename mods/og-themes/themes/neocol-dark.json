@@ -1,0 +1,26 @@
+{
+  "name": "Neocol Dark",
+  "base": "dark",
+  "overrides": {
+    "claude": "#00a6a5",
+    "claudeShimmer": "#5fd3d2",
+    "text": "#e6e7e8",
+    "subtle": "#4f6f78",
+    "inactive": "#8a9ba1",
+    "suggestion": "#00a6a5",
+    "permission": "#6fb6c3",
+    "permissionShimmer": "#9fd0d9",
+    "remember": "#ffc907",
+    "success": "#3ec9a7",
+    "error": "#fb7268",
+    "warning": "#ffc907",
+    "promptBorder": "#3d7986",
+    "promptBorderShimmer": "#6aa6b3",
+    "planMode": "#00a6a5",
+    "autoAccept": "#9b7fd1",
+    "bashBorder": "#fb7268",
+    "userMessageBackground": "#0d2c39",
+    "userMessageBackgroundHover": "#15394a",
+    "selectionBg": "#3d7986"
+  }
+}

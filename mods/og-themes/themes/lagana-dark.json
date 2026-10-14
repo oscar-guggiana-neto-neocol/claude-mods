@@ -1,0 +1,26 @@
+{
+  "name": "LaGana Lion Dark",
+  "base": "dark",
+  "overrides": {
+    "claude": "#E8473A",
+    "claudeShimmer": "#EE6C61",
+    "text": "#F4F5F7",
+    "subtle": "#4A6080",
+    "inactive": "#98A2B3",
+    "suggestion": "#52A3D6",
+    "permission": "#52A3D6",
+    "permissionShimmer": "#8cc3e6",
+    "remember": "#F2C200",
+    "success": "#3DC872",
+    "error": "#EE6C61",
+    "warning": "#F2C200",
+    "promptBorder": "#4A6080",
+    "promptBorderShimmer": "#6d86a8",
+    "planMode": "#2F88C8",
+    "autoAccept": "#F7D44D",
+    "bashBorder": "#EE6C61",
+    "userMessageBackground": "#1E2D45",
+    "userMessageBackgroundHover": "#273a57",
+    "selectionBg": "#344563"
+  }
+}

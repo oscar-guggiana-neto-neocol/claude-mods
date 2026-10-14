@@ -1,0 +1,26 @@
+{
+  "name": "Neocol Light",
+  "base": "light",
+  "overrides": {
+    "claude": "#3d7986",
+    "claudeShimmer": "#00a6a5",
+    "text": "#0d2c39",
+    "subtle": "#a9b4b8",
+    "inactive": "#6b7b80",
+    "suggestion": "#3d7986",
+    "permission": "#372554",
+    "permissionShimmer": "#6a4c93",
+    "remember": "#b38600",
+    "success": "#1f8a74",
+    "error": "#d9483e",
+    "warning": "#b38600",
+    "promptBorder": "#00a6a5",
+    "promptBorderShimmer": "#5fc4c3",
+    "planMode": "#00807f",
+    "autoAccept": "#6a4c93",
+    "bashBorder": "#fb7268",
+    "userMessageBackground": "#e6e7e8",
+    "userMessageBackgroundHover": "#d9dbdc",
+    "selectionBg": "#b3e0e0"
+  }
+}
