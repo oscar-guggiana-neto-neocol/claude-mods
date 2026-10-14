@@ -263,6 +263,7 @@ export const register: Register = on => {
       return (
         <Box flexDirection="column">
           <Text bold>Orgs do projeto {shownPanel.name}: marque as que pertencem a ele</Text>
+          <Text dimColor>Tab navega · Enter marca/desmarca · s salva · c cancela</Text>
           {[...groups].map(([group, rows]) => (
             <Box key={`group:${group}`} flexDirection="column" marginTop={1}>
               <Text dimColor>{group}</Text>

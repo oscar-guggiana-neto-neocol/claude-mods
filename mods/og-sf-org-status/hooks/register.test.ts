@@ -245,6 +245,7 @@ describe('plugin', () => {
     await $.command.run({ command: 'og-sf-org', ...RUN })
     const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
     await ui.press({ key: 'edit' })
+    expect(await ui.find({ text: /Enter marca\/desmarca/ })).toBeDefined()
     await ui.press({ key: 'check:me@globex.com.globexqa' })
     await ui.press({ key: 'save' })
 
