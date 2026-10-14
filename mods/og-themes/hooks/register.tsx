@@ -14,15 +14,22 @@ const note = atom({ plugin: 'og-themes', key: 'note' } as const, null)
 type Project = { cwd: string; name: string; slug: string; settings: string; themeFile: string }
 
 async function project($: EngineInterface): Promise<Project> {
-  const [cwd, home] = await Promise.all([$.session.cwd(), $.env.get('HOME')])
+  const [cwd, configDir, home, profile] = await Promise.all([
+    $.session.cwd(),
+    $.env.get('CLAUDE_CONFIG_DIR'),
+    $.env.get('HOME'),
+    $.env.get('USERPROFILE'),
+  ])
   const slug = projectSlug(cwd)
+  // HOME is often unset on Windows; USERPROFILE is its home there.
+  const claudeDir = configDir ?? `${home ?? profile}/.claude`
 
   return {
     cwd,
     name: baseName(cwd),
     slug,
     settings: `${cwd}/.claude/settings.local.json`,
-    themeFile: `${home}/.claude/themes/${slug}.json`,
+    themeFile: `${claudeDir}/themes/${slug}.json`,
   }
 }
 

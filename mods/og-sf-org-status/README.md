@@ -27,7 +27,8 @@ com **Trocar** (abre o painel) e **Ocultar** (some até o alvo mudar).
 
 ## Guarda de orgs protegidas
 
-Comandos de escrita que o Claude roda pela Bash tool numa org protegida param para você confirmar.
+Comandos de escrita que o Claude roda pela Bash tool, ou pela PowerShell tool no Windows, numa org
+protegida param para você confirmar.
 Isso não vale para o que você roda no seu próprio terminal.
 
 **Níveis.** A marca é da org (username) e vale em todos os projetos.
@@ -43,12 +44,14 @@ e ela vira protegida, mostrada como `PROD↓`; `r` restaura. A status line mostr
 
 **O que é escrita.** `sf project deploy start/quick/resume` (não `validate`, nem `--dry-run`),
 `project delete source`, `data create/update/delete/upsert/import/bulk`, `apex run` (não `apex run test`),
-`package install`, `org assign permset`, `org delete`, e os equivalentes `sfdx force:*`. Leituras
+`package install`, `org assign permset`, `org delete`, `api request rest` com método diferente de
+GET (`--method`/`-X`), `api request graphql`, e os equivalentes `sfdx force:*`. Leituras
 (`query`, `retrieve`, `org display/open`, logs) passam livres. A org vem de `-o`/`--target-org`
-(ou `-u`); sem flag, é a org alvo do projeto.
+(ou `-u`), sem diferenciar maiúsculas; sem flag, é a org alvo do projeto.
 
 **Caminhos indiretos.** A análise entra em comandos encadeados (`&&`, `;`, `|`, `$(...)`) e em
-`bash -c '...'`. Também pedem confirmação um comando que cite o alias, o username ou a URL de uma org
+`bash -c '...'`, `pwsh -Command`, `cmd /c`, e lê a sintaxe do PowerShell (caminhos com `\`,
+`& "...\sf.cmd"`, crase como escape e continuação de linha). Também pedem confirmação um comando que cite o alias, o username ou a URL de uma org
 protegida (um `curl` na REST API, por exemplo), e scripts do projeto com nome de deploy, push,
 release, data, seed, apex ou migrate (`npm run deploy:uat`, `./scripts/deploy.sh`) quando a org alvo
 é protegida. O system prompt lista as orgs protegidas do projeto e pede ao Claude que não contorne a guarda.
@@ -56,6 +59,11 @@ release, data, seed, apex ou migrate (`npm run deploy:uat`, `./scripts/deploy.sh
 **Quando ninguém pode responder** (`claude -p`, SDK), a escrita é negada. Se a guarda falhar ao
 decidir sobre um comando de escrita, ela nega (falha fechada). Os MCPs que escrevem em orgs ficam
 fora do escopo.
+
+**Windows.** Funciona igual, com uma diferença: o Claude Code não toca sons no Windows, então o
+alerta de produção é só visual. O home vem de `USERPROFILE` quando `HOME` não existe, e o mod roda o
+sf CLI via `cmd /c` (o `sf.cmd` precisa estar no PATH do processo do Claude para o painel mostrar
+info da org e trocar o alvo; a status line e a guarda leem os arquivos e não dependem disso).
 
 ## De onde vêm as orgs do projeto
 
@@ -73,7 +81,7 @@ legados `.sfdx/sfdx-config.json` também são lidos. Aliases vêm de `~/.sfdx/al
 org vem do auth file `~/.sfdx/<username>.json`: usa `isScratch`/`isSandbox` e, quando faltam, deduz
 pela URL.
 
-A status line atualiza no início da sessão, depois de cada comando `sf`/`sfdx` da Bash tool e a cada
+A status line atualiza no início da sessão, depois de cada comando `sf`/`sfdx` da Bash ou PowerShell tool e a cada
 15 s (pega mudanças feitas em outro terminal).
 
 Orgs de demo, SDO e Trailhead Playground aparecem como PROD ou dev-ed, porque tecnicamente são orgs

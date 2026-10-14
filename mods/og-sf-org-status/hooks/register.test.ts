@@ -1,7 +1,7 @@
 import type { On } from 'claude-code'
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { buildCatalog, classify, domainOf, inferProjectOrgs, parseInfo, resolveTargetOrg, statusText } from './org'
+import { baseName, buildCatalog, classify, domainOf, findProjectRoot, inferProjectOrgs, parentOf, parseInfo, resolveTargetOrg, statusText } from './org'
 
 const HOME = '/home/u'
 const PROJECT = '/work/globex-cpq'
@@ -37,18 +37,18 @@ const baseFiles = (): Record<string, string> => {
 const readerOf = (files: Record<string, string>) => async (path: string) => files[path]
 
 /** The world beneath the plugin: files, the sf CLI, the status line, panes. */
-const world = (on: On, files: Record<string, string>) => {
+const world = (on: On, files: Record<string, string>, env: Record<string, string> = { HOME }, cwd = PROJECT) => {
   const statuses: (string | undefined)[] = []
   const commands: string[][] = []
   const store = new Map<string, unknown>()
 
-  mock.env(on, { HOME })
+  mock.env(on, env)
   on('store.get', ($, e) => ({ value: store.get(e.key) }))
   on('store.set', ($, e) => {
     store.set(e.key, e.value)
     return { value: undefined }
   })
-  on('session.cwd', () => ({ value: PROJECT }))
+  on('session.cwd', () => ({ value: cwd }))
   on('fs.read', ($, e) => {
     const text = files[e.path]
     if (text === undefined) throw new Error(`ENOENT ${e.path}`)
@@ -61,10 +61,11 @@ const world = (on: On, files: Record<string, string>) => {
   }))
   on('process.run', ($, e) => {
     commands.push([...e.argv])
-    const [, noun, verb] = e.argv
+    const argv = e.argv[0] === 'cmd.exe' ? e.argv.slice(4) : e.argv
+    const [, noun, verb] = argv
     if (noun === 'config' && verb === 'set') {
-      const target = e.argv[3]?.replace('target-org=', '')
-      files[`${PROJECT}/.sf/config.json`] = JSON.stringify({ 'target-org': target })
+      const target = argv[3]?.replace('target-org=', '')
+      files[`${e.cwd ?? cwd}/.sf/config.json`] = JSON.stringify({ 'target-org': target })
     }
     const stdout =
       noun === 'org' && verb === 'display'
@@ -111,6 +112,36 @@ describe('classify', () => {
     expect(classify(AUTH.scratch)).toBe('scratch')
     expect(classify(AUTH.devEd)).toBe('developer')
     expect(classify(undefined)).toBe('unknown')
+  })
+})
+
+describe('Windows', () => {
+  test('walks Windows paths up to the drive root', async () => {
+    expect(parentOf('C:\\work\\app\\force-app')).toBe('C:\\work\\app')
+    expect(parentOf('C:\\work')).toBe('C:\\')
+    expect(parentOf('C:\\')).toBe('C:\\')
+    expect(parentOf('/work/app/')).toBe('/work')
+    expect(parentOf('/work')).toBe('/')
+    expect(baseName('C:\\work\\globex-cpq\\')).toBe('globex-cpq')
+    const read = readerOf({ 'C:\\work\\app/sfdx-project.json': '{}' })
+    expect(await findProjectRoot(read, 'C:\\work\\app\\force-app\\main')).toBe('C:\\work\\app')
+    expect(await findProjectRoot(read, 'D:\\other\\dir')).toBeUndefined()
+  })
+
+  test('reads orgs under USERPROFILE and runs sf through cmd', async ($, on) => {
+    // The test engine resolves POSIX paths; Windows paths are walked above.
+    const files = baseFiles()
+    files[`${PROJECT}/.sf/config.json`] = JSON.stringify({ 'target-org': 'globexqa' })
+    const { statuses, commands } = world(on, files, { USERPROFILE: HOME, OS: 'Windows_NT' })
+
+    await $.command.run({ command: 'og-sf-org', ...RUN })
+    expect(statuses[0]).toContain('globexqa')
+
+    const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+    await ui.press({ key: 'row:me@globex.com.globexdev' })
+    await ui.press({ key: 'target' })
+    expect(commands).toContainEqual(['cmd.exe', '/d', '/s', '/c', 'sf', 'config', 'set', 'target-org=globexdev', '--json'])
+    expect(statuses.at(-1)).toContain('globexdev')
   })
 })
 
@@ -294,6 +325,11 @@ const shell = (on: On, answers: (string | Error)[]) => {
     ran.push(e.command)
     return { result: { stdout: 'ok', stderr: '', interrupted: false, isImage: false } }
   })
+  on('tool.call', ($, e, next) => {
+    if (e.tool !== 'PowerShell') return next(e)
+    ran.push(String((e as { command?: unknown }).command))
+    return { result: { stdout: 'ok', stderr: '' } } as never
+  })
   on('tool.call', { tool: 'AskUserQuestion' }, ($, e) => {
     const question = e.questions[0]?.question ?? ''
     asked.push(question)
@@ -324,6 +360,22 @@ describe('guard', () => {
     await $.tool.call(bash('sf apex run -f a.apex -o globexqa'))
     expect(asked).toHaveLength(3)
     expect(ran).toHaveLength(3)
+  })
+
+  test('PowerShell writes ask too, with the alias in any case', async ($, on) => {
+    const files = baseFiles()
+    files[`${PROJECT}/.sf/config.json`] = JSON.stringify({ 'target-org': 'globexdev' })
+    world(on, files)
+    const { ran, asked } = shell(on, ['Negar', 'Negar'])
+    const ps = (command: string) => ({ tool: 'PowerShell', command }) as never
+
+    const update = '$env:PATH = "C:\\nodejs;" + $env:PATH\nsf data update record -s Product2 -i 01t -o GLOBEXQA --values $arg'
+    expect((await $.tool.call(ps(update))).deny).toContain('Do not retry')
+    const patch = 'sf api request rest "/services/data/v68.0/sobjects/Product2/01t" --method PATCH --body b.json -o globexqa'
+    expect((await $.tool.call(ps(patch))).deny).toContain('Do not retry')
+    expect(asked).toHaveLength(2)
+    expect(asked[1]).toContain('chamada de API que escreve')
+    expect(ran).toEqual([])
   })
 
   test('reads and free orgs pass without a question', async ($, on) => {

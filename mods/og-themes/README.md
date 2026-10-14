@@ -44,3 +44,6 @@ as trocas são ao vivo.
 Os quatro temas de marca também aparecem em `/theme` ("Neocol Dark", "LaGana Lion
 Light"...). Num projeto com `/og-tema`, o `/theme` muda só o tema global, e o projeto
 continua com o dele.
+
+No Windows o arquivo fica em `%USERPROFILE%\.claude\themes`; com `CLAUDE_CONFIG_DIR` definido,
+em `$CLAUDE_CONFIG_DIR/themes`.

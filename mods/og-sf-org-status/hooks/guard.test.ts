@@ -3,6 +3,7 @@ import { describe, expect, test } from 'claude-code/testing'
 import { findWrites, looksLikeEnvironment, mentions, otherCommands, protectionOf, splitCommands } from './guard'
 
 const ops = (line: string) => findWrites(line).map(write => [write.operation, write.target])
+const psOps = (line: string) => findWrites(line, 'powershell').map(write => [write.operation, write.target])
 
 describe('protectionOf', () => {
   test('production is guarded by default; a mark downgrades it', () => {
@@ -85,6 +86,28 @@ describe('findWrites', () => {
     expect(ops(`bash -c "sf data delete record -s Account -i 001 -o prod"`)).toEqual([['data', 'prod']])
     expect(ops(`sh -lc 'cd x; sf apex run -o qa'`)).toEqual([['apex', 'qa']])
     expect(ops('/usr/local/bin/sf project deploy start')).toEqual([['deploy', undefined]])
+  })
+
+  test('reads sf api request: REST writes by method, GraphQL always', () => {
+    expect(ops('sf api request rest "/services/data/v68.0/sobjects/Product2/01t" --method PATCH --body b.json -o QA')).toEqual([['api', 'QA']])
+    expect(ops('sf api request rest /services/data/v68.0/sobjects/Account -X POST')).toEqual([['api', undefined]])
+    expect(ops('sf api request rest /services/data/v68.0/limits -o QA')).toEqual([])
+    expect(ops('sf api request rest /services/data/v68.0/limits --method get -o QA')).toEqual([])
+    expect(ops('sf api request graphql --body q.txt -o QA')).toEqual([['api', 'QA']])
+  })
+
+  test('reads PowerShell: Windows paths, the call operator, variables, wrappers', () => {
+    const line =
+      '$env:PATH = "C:\\Program Files\\nodejs;" + $env:PATH\n' +
+      'sf data update record -s Product2 -i 01t0z000007myfWAAQ -o QA --values $arg --json'
+    expect(psOps(line)).toEqual([['data', 'QA']])
+    expect(psOps('& "C:\\Program Files\\nodejs\\sf.cmd" project deploy start -o QA')).toEqual([['deploy', 'QA']])
+    expect(psOps('sf.cmd apex run -f a.apex `\n  -o QA')).toEqual([['apex', 'QA']])
+    expect(psOps('Write-Host "a`"b"; sf data delete record -s Account -i 001 -o QA')).toEqual([['data', 'QA']])
+    expect(psOps('.\\scripts\\deploy.ps1')).toEqual([['script', undefined]])
+    expect(ops('pwsh -Command "sf project deploy start -o QA"')).toEqual([['deploy', 'QA']])
+    expect(psOps('cmd /c sf data import tree -f a.json -o QA')).toEqual([['data', 'QA']])
+    expect(psOps('sf data query -q "SELECT Id FROM Product2" -o QA')).toEqual([])
   })
 
   test('takes deploy-like project scripts as writes to the default org', () => {

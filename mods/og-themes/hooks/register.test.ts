@@ -44,10 +44,10 @@ describe('theme', () => {
   })
 })
 
-const world = (on: On, liveTheme: string) => {
+const world = (on: On, liveTheme: string, env: Record<string, string> = { HOME }) => {
   const files: Record<string, string> = {}
   const store = new Map<string, unknown>()
-  mock.env(on, { HOME })
+  mock.env(on, env)
   on('session.cwd', () => ({ value: PROJECT }))
   on('store.get', ($, e) => ({ value: store.get(e.key) }))
   on('store.set', ($, e) => {
@@ -108,6 +108,18 @@ describe('plugin', () => {
     expect((await $.command.run(run('4'))).text).toMatch(/^Tema deste projeto: Neocol light\. Vale a partir da próxima sessão/)
     expect(parsed(files[SETTINGS]).theme).toBe(`custom:${SLUG}`)
     expect(parsed(files[THEME_FILE])).toMatchObject({ base: 'light', overrides: { claude: 'neocol-light' } })
+  })
+
+  test('on Windows the theme file goes under USERPROFILE', async ($, on) => {
+    const files = world(on, `custom:${SLUG}`, { USERPROFILE: HOME, OS: 'Windows_NT' })
+    await $.command.run(run('3'))
+    expect(parsed(files[THEME_FILE])).toMatchObject({ base: 'dark' })
+  })
+
+  test('CLAUDE_CONFIG_DIR wins over the home folder', async ($, on) => {
+    const files = world(on, `custom:${SLUG}`, { HOME, CLAUDE_CONFIG_DIR: '/cfg' })
+    await $.command.run(run('3'))
+    expect(parsed(files[`/cfg/themes/${SLUG}.json`])).toMatchObject({ base: 'dark' })
   })
 
   test('once the session draws the file, picks change it in place', async ($, on) => {

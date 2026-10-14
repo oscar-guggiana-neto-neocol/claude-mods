@@ -56,8 +56,15 @@ export const LOCK = '🔒'
 /** One simple command: its words, quotes removed. */
 type Words = string[]
 
-/** Splits a command line into simple commands: `&&`, `||`, `;`, `|`, `&`, newlines, parentheses, `$(`, backticks. */
-export const splitCommands = (line: string): Words[] => {
+/**
+ * The shell a command line is written for. PowerShell keeps `\` literal (Windows
+ * paths) and escapes with the backtick, which in bash runs a command instead.
+ */
+export type Shell = 'bash' | 'powershell'
+
+/** Splits a command line into simple commands: `&&`, `||`, `;`, `|`, `&`, newlines, parentheses, `$(`, and in bash backticks. */
+export const splitCommands = (line: string, shell: Shell = 'bash'): Words[] => {
+  const escapeChar = shell === 'powershell' ? '`' : '\\'
   const commands: Words[] = []
   let words: Words = []
   let word = ''
@@ -83,17 +90,19 @@ export const splitCommands = (line: string): Words[] => {
     } else if (c === '"') {
       i++
       while (i < line.length && line[i] !== '"') {
-        if (line[i] === '\\' && i + 1 < line.length) i++
+        if (line[i] === escapeChar && i + 1 < line.length) i++
         word += line[i]
         i++
       }
       hasWord = true
-    } else if (c === '\\' && i + 1 < line.length) {
-      word += line[++i]
-      hasWord = true
+    } else if (c === escapeChar && i + 1 < line.length) {
+      // A PowerShell backtick before a newline only continues the line.
+      if (line[i + 1] !== '\n') word += line[i + 1]
+      hasWord = hasWord || line[i + 1] !== '\n'
+      i++
     } else if (c === ' ' || c === '\t') {
       endWord()
-    } else if (';&|\n()`'.includes(c) || (c === '$' && line[i + 1] === '(')) {
+    } else if (';&|\n()'.includes(c) || (c === '`' && shell === 'bash') || (c === '$' && line[i + 1] === '(')) {
       endCommand()
       if (c === '$') i++
     } else {
@@ -106,9 +115,33 @@ export const splitCommands = (line: string): Words[] => {
   return commands
 }
 
-// Words that run the command after them: `sudo sf ...`, `npx sf ...`.
-const PREFIXES = new Set(['sudo', 'npx', 'time', 'command', 'exec', 'env', 'nohup', 'xargs'])
-const SHELLS = new Set(['bash', 'sh', 'zsh'])
+// Words that run the command after them: `sudo sf ...`, `npx sf ...`, PowerShell's `. ./x.ps1`.
+const PREFIXES = new Set(['sudo', 'npx', 'time', 'command', 'exec', 'env', 'nohup', 'xargs', '.'])
+
+/** A program's bare name: `/usr/local/bin/sf` → `sf`, `C:\\nodejs\\sf.cmd` → `sf`. */
+const programName = (word: string) =>
+  (word.split(/[\\/]/).pop() ?? word).toLowerCase().replace(/\.(exe|cmd|bat|ps1)$/, '')
+
+/** The command line a shell wrapper runs (`bash -c '…'`, `pwsh -Command …`, `cmd /c …`), and how to read it. */
+const wrapped = (words: Words): { line: string; shell: Shell } | undefined => {
+  const name = programName(words[0] ?? '')
+  const rest = words.slice(1)
+  if (['bash', 'sh', 'zsh'].includes(name)) {
+    const at = rest.findIndex(word => /^-[a-z]*c$/.test(word))
+    const line = at >= 0 ? rest[at + 1] : undefined
+    return line === undefined ? undefined : { line, shell: 'bash' }
+  }
+  if (name === 'pwsh' || name === 'powershell') {
+    const at = rest.findIndex(word => /^-(c|command)$/i.test(word))
+    return at < 0 ? undefined : { line: rest.slice(at + 1).join(' '), shell: 'powershell' }
+  }
+  if (name === 'cmd') {
+    const at = rest.findIndex(word => /^\/[ck]$/i.test(word))
+    return at < 0 ? undefined : { line: rest.slice(at + 1).join(' '), shell: 'powershell' }
+  }
+
+  return undefined
+}
 
 /** The words that matter: leading `FOO=bar`, prefixes and shell wrappers peeled off. */
 const commandWords = (words: Words): Words => {
@@ -122,12 +155,13 @@ const commandWords = (words: Words): Words => {
   return rest
 }
 
-export type Operation = 'deploy' | 'delete' | 'data' | 'apex' | 'package' | 'permset' | 'org-delete' | 'script'
+export type Operation = 'deploy' | 'delete' | 'data' | 'api' | 'apex' | 'package' | 'permset' | 'org-delete' | 'script'
 
 export const OPERATION_LABEL: Record<Operation, string> = {
   deploy: 'deploy de metadata',
   delete: 'remoção de metadata',
   data: 'escrita de dados (DML)',
+  api: 'chamada de API que escreve',
   apex: 'Apex anônimo',
   package: 'instalação de pacote',
   permset: 'atribuição de permission set',
@@ -185,6 +219,12 @@ const sfOperation = (args: Words): Operation | undefined => {
   if (topic === 'project' && verb === 'deploy' && ['start', 'quick', 'resume'].includes(object ?? '') && !isDryRun) return 'deploy'
   if (topic === 'project' && verb === 'delete' && object === 'source') return 'delete'
   if (topic === 'data' && ['create', 'update', 'delete', 'upsert', 'import', 'bulk'].includes(verb ?? '')) return 'data'
+  // `sf api request rest` is a GET unless told otherwise; GraphQL may carry a mutation.
+  if (topic === 'api' && verb === 'request' && object === 'rest') {
+    const method = flagValue(args, ['--method', '-X'])?.toUpperCase() ?? 'GET'
+    return method === 'GET' || method === 'HEAD' ? undefined : 'api'
+  }
+  if (topic === 'api' && verb === 'request' && object === 'graphql') return 'api'
   if (topic === 'apex' && verb === 'run' && object !== 'test') return 'apex'
   if (topic === 'package' && verb === 'install') return 'package'
   if (topic === 'org' && verb === 'assign') return 'permset'
@@ -201,25 +241,22 @@ const scriptName = (words: Words): string | undefined => {
   if ((first === 'npm' || first === 'pnpm') && (second === 'run' || second === 'run-script')) return third
   if (first === 'yarn') return second === 'run' ? third : second
   if (first === 'make') return second ?? 'make'
-  const file = first !== undefined && SHELLS.has(first) ? second : first
-  if (file?.endsWith('.sh')) return file.split('/').pop()
+  const file = first !== undefined && ['bash', 'sh', 'zsh', 'pwsh', 'powershell'].includes(programName(first)) ? second : first
+  if (file !== undefined && /\.(sh|ps1|cmd|bat)$/i.test(file)) return file.split(/[\\/]/).pop()
 
   return undefined
 }
 
-/** Every write a Bash command would make to a Salesforce org, unwrapping `bash -c`. */
-export const findWrites = (line: string, depth = 0): Write[] =>
-  splitCommands(line).flatMap(raw => {
+/** Every write a shell command would make to a Salesforce org, unwrapping `bash -c` and the like. */
+export const findWrites = (line: string, shell: Shell = 'bash', depth = 0): Write[] =>
+  splitCommands(line, shell).flatMap(raw => {
     const words = commandWords(raw)
     const [first] = words
     if (first === undefined) return []
     const text = raw.join(' ')
-    if (SHELLS.has(first) && depth < 3) {
-      const at = words.findIndex(word => /^-[a-z]*c$/.test(word))
-      const inner = at > 0 ? words[at + 1] : undefined
-      if (inner !== undefined) return findWrites(inner, depth + 1)
-    }
-    const name = first.split('/').pop()
+    const inner = depth < 3 ? wrapped(words) : undefined
+    if (inner !== undefined) return findWrites(inner.line, inner.shell, depth + 1)
+    const name = programName(first)
     if (name === 'sf' || name === 'sfdx') {
       const args = words.slice(1)
       const operation = sfOperation(args)
@@ -232,17 +269,14 @@ export const findWrites = (line: string, depth = 0): Write[] =>
   })
 
 /** The simple commands that are not `sf`/`sfdx`, where a protected org named by hand is a write we cannot read. */
-export const otherCommands = (line: string, depth = 0): string[] =>
-  splitCommands(line).flatMap(raw => {
+export const otherCommands = (line: string, shell: Shell = 'bash', depth = 0): string[] =>
+  splitCommands(line, shell).flatMap(raw => {
     const words = commandWords(raw)
     const [first] = words
     if (first === undefined) return []
-    if (SHELLS.has(first) && depth < 3) {
-      const at = words.findIndex(word => /^-[a-z]*c$/.test(word))
-      const inner = at > 0 ? words[at + 1] : undefined
-      if (inner !== undefined) return otherCommands(inner, depth + 1)
-    }
-    const name = first.split('/').pop()
+    const inner = depth < 3 ? wrapped(words) : undefined
+    if (inner !== undefined) return otherCommands(inner.line, inner.shell, depth + 1)
+    const name = programName(first)
 
     return name === 'sf' || name === 'sfdx' ? [] : [raw.join(' ')]
   })

@@ -3,6 +3,7 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { OrgInfo, OrgRow, Override, Panel, TargetOrg } from '../types'
 import { LOCK, OPERATION_LABEL, findWrites, mentions, otherCommands, protectionOf } from './guard'
+import type { Shell } from './guard'
 import type { Protection } from './guard'
 import {
   aliasesIn,
@@ -25,7 +26,7 @@ const COMMAND = 'og-sf-org'
 const PANE = 'sf-orgs'
 const POLL_MS = 15_000
 // sf/sfdx commands that can change the target org or its auth.
-const SF_COMMAND = /(^|[\s;&|(])(sf|sfdx)\s/
+const SF_COMMAND = /(^|[\s;&|(\\/])(sf|sfdx)(\.cmd|\.exe)?\s/i
 const ORG_QUERY = 'SELECT OrganizationType, InstanceName, TrialExpirationDate FROM Organization'
 const PROD_HEADER = '⚠ PRODUÇÃO'
 const PROTECTION_KEY = 'protection'
@@ -65,10 +66,25 @@ async function readText($: EngineInterface, path: string) {
   return $.fs.read(path).then(String, () => undefined)
 }
 
+/** The home folder: HOME, or USERPROFILE on Windows, where HOME is often unset. */
+async function homeOf($: EngineInterface) {
+  return (await $.env.get('HOME')) ?? (await $.env.get('USERPROFILE'))
+}
+
+/**
+ * Runs the sf CLI. On Windows `sf` is `sf.cmd`, a batch file a process cannot
+ * start without a shell, so it goes through `cmd /c`.
+ */
+async function runSf($: EngineInterface, args: string[], init?: { cwd?: string; timeoutMs?: number }) {
+  const isWindows = (await $.env.get('OS')) === 'Windows_NT'
+
+  return $.process.run(isWindows ? ['cmd.exe', '/d', '/s', '/c', 'sf', ...args] : ['sf', ...args], init)
+}
+
 async function where($: EngineInterface) {
   const [cwd, home, sfTarget, legacyTarget] = await Promise.all([
     $.session.cwd(),
-    $.env.get('HOME'),
+    homeOf($),
     $.env.get('SF_TARGET_ORG'),
     $.env.get('SFDX_DEFAULTUSERNAME'),
   ])
@@ -127,7 +143,7 @@ async function loadCatalog($: EngineInterface, home: string): Promise<OrgRow[]> 
 /** The catalog and aliases, from the cache while it is fresh. */
 async function knownOrgs($: EngineInterface) {
   if (orgs !== undefined && Date.now() - orgs.at < CATALOG_MS) return orgs
-  const home = await $.env.get('HOME')
+  const home = await homeOf($)
   if (home !== undefined) await loadCatalog($, home)
 
   return orgs ?? { at: 0, catalog: [], aliases: {} }
@@ -205,14 +221,14 @@ async function openPanel($: EngineInterface) {
 
 async function loadInfo($: EngineInterface, username: string) {
   await update($, info, all => ({ ...all, [username]: { status: 'loading' as const } }))
-  const run = (argv: string[]) =>
-    $.process.run(argv, { timeoutMs: 60_000 }).then(
+  const run = (args: string[]) =>
+    runSf($, args, { timeoutMs: 60_000 }).then(
       ran => ran.stdout,
       () => undefined,
     )
   const [display, query] = await Promise.all([
-    run(['sf', 'org', 'display', '-o', username, '--json']),
-    run(['sf', 'data', 'query', '-o', username, '-q', ORG_QUERY, '--json']),
+    run(['org', 'display', '-o', username, '--json']),
+    run(['data', 'query', '-o', username, '-q', ORG_QUERY, '--json']),
   ])
   const found: OrgInfo =
     display === undefined ? { status: 'error', message: 'sf CLI não encontrado ou sem resposta' } : parseInfo(display, query)
@@ -229,8 +245,7 @@ async function makeTarget($: EngineInterface, row: OrgRow) {
   const shown = await read($, panel)
   if (shown === null) return
   await update($, message, () => `Definindo ${nameOf(row)} como org alvo…`)
-  const ran = await $.process
-    .run(['sf', 'config', 'set', `target-org=${nameOf(row)}`, '--json'], { cwd: shown.root })
+  const ran = await runSf($, ['config', 'set', `target-org=${nameOf(row)}`, '--json'], { cwd: shown.root })
     .catch(error => ({ exitCode: 1, stdout: '', stderr: String(error) }))
   if (ran.exitCode !== 0) {
     const reason = parse<{ message?: string }>(ran.stdout)?.message ?? firstLine(ran.stderr)
@@ -247,8 +262,7 @@ async function makeTarget($: EngineInterface, row: OrgRow) {
 
 async function openInBrowser($: EngineInterface, row: OrgRow) {
   await update($, message, () => `Abrindo ${nameOf(row)} no browser…`)
-  const ran = await $.process
-    .run(['sf', 'org', 'open', '-o', row.username, '--json'], { timeoutMs: 60_000 })
+  const ran = await runSf($, ['org', 'open', '-o', row.username, '--json'], { timeoutMs: 60_000 })
     .catch(error => ({ exitCode: 1, stdout: '', stderr: String(error) }))
   await update($, message, () =>
     ran.exitCode === 0
@@ -276,12 +290,21 @@ async function switchTo($: EngineInterface, name: string) {
   return (await read($, message)) ?? ''
 }
 
+const SHELL_TOOLS: Record<string, Shell> = { Bash: 'bash', PowerShell: 'powershell' }
+
+/** The command a shell tool call runs, and the shell it is written for. */
+const shellCall = (e: { tool: string }): { command: string; shell: Shell } | undefined => {
+  const shell = SHELL_TOOLS[e.tool]
+  const command = (e as { command?: unknown }).command
+  return shell !== undefined && typeof command === 'string' ? { command, shell } : undefined
+}
+
 type Hit = { row: OrgRow; guard: Protection; operations: string[]; commands: string[] }
 
-/** The guarded orgs a Bash command would write to, production first. */
-async function hitsOf($: EngineInterface, command: string): Promise<Hit[]> {
-  const writes = findWrites(command)
-  const others = otherCommands(command)
+/** The guarded orgs a shell command would write to, production first. */
+async function hitsOf($: EngineInterface, command: string, shell: Shell): Promise<Hit[]> {
+  const writes = findWrites(command, shell)
+  const others = otherCommands(command, shell)
   if (writes.length === 0 && others.length === 0) return []
   const [{ catalog, aliases }, marks] = await Promise.all([knownOrgs($), read($, protection)])
   const target = writes.some(write => write.target === undefined) ? await refresh($) : undefined
@@ -295,8 +318,10 @@ async function hitsOf($: EngineInterface, command: string): Promise<Hit[]> {
     hits.set(row.username, hit)
   }
   const rowOf = (name: string): OrgRow | undefined => {
-    const username = aliases[name] ?? name
-    return catalog.find(row => row.username === username)
+    // An alias typed in another case (`-o qa` for `QA`) is still that org: better to ask than to miss it.
+    const alias = Object.keys(aliases).find(one => one === name) ?? Object.keys(aliases).find(one => one.toLowerCase() === name.toLowerCase())
+    const username = (alias !== undefined ? aliases[alias] : undefined) ?? name
+    return catalog.find(row => row.username.toLowerCase() === username.toLowerCase())
   }
 
   for (const write of writes) {
@@ -363,8 +388,8 @@ async function askProduction($: EngineInterface, hit: Hit): Promise<string | und
 }
 
 /** Undefined to let the command run, else why it may not. */
-async function guard($: EngineInterface, command: string): Promise<string | undefined> {
-  for (const hit of await hitsOf($, command)) {
+async function guard($: EngineInterface, command: string, shell: Shell): Promise<string | undefined> {
+  for (const hit of await hitsOf($, command, shell)) {
     const refused = hit.guard.level === 'production' ? await askProduction($, hit) : await askProtected($, hit)
     if (refused !== undefined) return refused
   }
@@ -425,23 +450,29 @@ export const register: Register = on => {
     return { text: explain(await refresh($)) }
   }).catch(() => ({ text: 'og-sf-org-status: não consegui ler a configuração do sf CLI.' }))
 
-  on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
+  // Every shell tool: Bash, and PowerShell on Windows.
+  on('tool.call', async ($, e, next) => {
+    const call = shellCall(e)
+    if (call === undefined) return next(e)
     // Fails closed: a guard that cannot decide on a write refuses it.
-    const refused = await guard($, e.command).catch(error =>
-      findWrites(e.command).length > 0 ? `Blocked: the Salesforce org guard failed (${String(error)}).` : undefined,
+    const refused = await guard($, call.command, call.shell).catch(error =>
+      findWrites(call.command, call.shell).length > 0 ? `Blocked: the Salesforce org guard failed (${String(error)}).` : undefined,
     )
     if (refused !== undefined) return { deny: refused }
     const ran = await next(e)
-    if (SF_COMMAND.test(e.command)) {
+    if (SF_COMMAND.test(call.command)) {
       await refresh($)
       await refreshGuardSection($)
     }
 
     return ran
-  }).catch(($, e, next) =>
+  }).catch(($, e, next) => {
     // Past the guard the command already ran: replay it. Before, a write is refused.
-    next.called || findWrites(e.command).length === 0 ? next(e) : { deny: 'Blocked: the Salesforce org guard failed.' },
-  )
+    const call = shellCall(e)
+    return next.called || call === undefined || findWrites(call.command, call.shell).length === 0
+      ? next(e)
+      : { deny: 'Blocked: the Salesforce org guard failed.' }
+  })
 
   on('prompt.compose', async ($, e, next) => {
     const composed = await next(e)

@@ -1,6 +1,6 @@
 {
   "name": "og-sf-org-status",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Org Salesforce alvo na status line, painel para trocar de org por projeto e guarda de escrita em orgs protegidas e produção",
   "author": {
     "name": "Oscar Guggiana"

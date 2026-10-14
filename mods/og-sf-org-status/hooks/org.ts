@@ -32,18 +32,26 @@ export const parse = <T>(text: string | undefined): T | undefined => {
   }
 }
 
-const parentOf = (dir: string) => {
-  const cut = dir.replace(/\/+$/, '').lastIndexOf('/')
-  return cut <= 0 ? '/' : dir.slice(0, cut)
+// Paths may be POSIX (`/work/app`) or Windows (`C:\\work\\app`): both separators count.
+const isRoot = (dir: string) => /^([A-Za-z]:)?[\\/]*$/.test(dir)
+
+export const parentOf = (dir: string) => {
+  const trimmed = dir.replace(/[\\/]+$/, '')
+  const cut = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'))
+  if (cut < 0) return dir
+  const parent = trimmed.slice(0, cut)
+  if (parent === '') return dir[0] === '\\' ? '\\' : '/'
+
+  return /^[A-Za-z]:$/.test(parent) ? `${parent}\\` : parent
 }
 
-export const baseName = (dir: string) => dir.replace(/\/+$/, '').split('/').pop() || dir
+export const baseName = (dir: string) => dir.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || dir
 
 /** The nearest directory at or above `cwd` holding sfdx-project.json. */
 export const findProjectRoot = async (read: Reader, cwd: string) => {
   for (let dir = cwd; ; dir = parentOf(dir)) {
-    if ((await read(`${dir}/sfdx-project.json`)) !== undefined) return dir
-    if (dir === '/') return undefined
+    if ((await read(`${dir.replace(/[\\/]+$/, '')}/sfdx-project.json`)) !== undefined) return dir
+    if (isRoot(dir) || parentOf(dir) === dir) return undefined
   }
 }
 
