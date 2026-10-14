@@ -1,6 +1,9 @@
 {
   "name": "og-themes",
   "version": "0.1.0",
-  "description": "Temas Neocol e LaGana (Lion), dark e light, escolhidos por projeto com /og-tema",
-  "author": { "name": "Oscar Guggiana" }
+  "description": "Temas Neocol e LaGana Lion, dark e light, escolhidos por projeto com /og-tema e trocados ao vivo",
+  "author": {
+    "name": "Oscar Guggiana"
+  },
+  "types": "./types/index.d.ts"
 }

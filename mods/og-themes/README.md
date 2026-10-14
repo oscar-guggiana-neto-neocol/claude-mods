@@ -12,19 +12,35 @@ As cores vêm dos design systems (`neocol-branding`, 2026, e `lagana-branding`, 
 
 ## Uso
 
+`/og-tema` abre um menu numerado. Tecle o número e o tema muda na hora:
+
 ```
-/og-tema neocol            # Neocol neste projeto, mantendo dark/light atual
-/og-tema lagana light      # LaGana Lion light
-/og-tema dark              # troca só o modo
-/og-tema claude light      # tema light do Claude, fixo neste projeto
-/og-tema claude            # remove o tema do projeto: volta ao tema global
-/og-tema                   # mostra o tema do projeto
+1. Claude dark        3. Neocol dark        5. LaGana Lion dark
+2. Claude light       4. Neocol light       6. LaGana Lion light
 ```
 
-O comando grava `"theme"` em `.claude/settings.local.json` do diretório atual, que vale
-acima do `~/.claude/settings.json`. Assim cada projeto lembra o seu tema e projetos
-pessoais continuam com o tema global. Os temas também aparecem em `/theme` como
-"Neocol Dark", "LaGana Lion Light" etc.; o valor deles é `custom:og-themes:<slug>`.
+Também dá para escolher direto:
 
-Num projeto com tema próprio, o `/theme` muda o tema global, mas o do projeto continua
-valendo. Para trocar, use `/og-tema`.
+```
+/og-tema 4                 # Neocol light
+/og-tema lagana            # troca a marca, mantém dark/light
+/og-tema light             # troca só o modo
+/og-tema reset             # tira o tema do projeto: volta o tema global
+```
+
+## Como funciona
+
+Cada projeto (diretório da sessão) tem um arquivo de tema próprio,
+`~/.claude/themes/og-tema-<pasta>-<hash>.json`, e o `.claude/settings.local.json` do
+projeto aponta para ele (`"theme": "custom:og-tema-..."`). O Claude Code recarrega
+`~/.claude/themes/` quando um arquivo muda, então o `/og-tema` só reescreve esse arquivo
+e a sessão troca de cor na hora. Sessões abertas em projetos diferentes ficam cada uma
+com o seu tema.
+
+O Claude Code lê o setting `theme` só ao iniciar. Por isso, **na primeira escolha num
+projeto** o tema vale a partir da próxima sessão (o comando avisa). Depois disso todas
+as trocas são ao vivo.
+
+Os quatro temas de marca também aparecem em `/theme` ("Neocol Dark", "LaGana Lion
+Light"...). Num projeto com `/og-tema`, o `/theme` muda só o tema global, e o projeto
+continua com o dele.

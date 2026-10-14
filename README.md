@@ -8,7 +8,7 @@ e passa a valer em todos os projetos.
 | --- | --- | --- |
 | [og-sf-org-status](mods/og-sf-org-status) | status line, painel, faixa, `/og-sf-org` | Org Salesforce alvo à vista, troca entre as orgs do projeto e alerta em produção |
 | [og-focus-mode](mods/og-focus-mode) | render hooks, `/og-foco` | Interface mais limpa: ferramentas em uma linha, resultados só em erro, sem rodapés de turno |
-| [og-themes](mods/og-themes) | temas, `/og-tema` | Temas Neocol e LaGana Lion, dark e light, por projeto |
+| [og-themes](mods/og-themes) | temas, painel, `/og-tema` | Temas Neocol e LaGana Lion, dark e light, por projeto, trocados ao vivo por número |
 
 ## Instalar (uma vez)
 
