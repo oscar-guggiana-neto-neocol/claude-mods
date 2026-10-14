@@ -10,8 +10,12 @@ Outside a Salesforce DX project (no `sfdx-project.json` above the cwd), nothing 
 **Warning band:** when the target org is production, a `⚠ PRODUCTION` band shows above the prompt,
 with **Switch** (opens the panel) and **Hide** (gone until the target changes).
 
-**Panel (`/og-sf-org`):** lists the project's orgs with kind, username and the selected org's info
-(edition, API version, pod, connection status, expiration and org id). Keys with the panel focused:
+**Panel (`/og-sf-org`):** shows the target org at the top (alias, kind, username, instance and
+where the target comes from), then lists the project's orgs with kind, username and the selected
+org's info (edition, API version, pod, connection status, expiration and org id). Where no panel can
+be drawn, the command prints the target org as text instead. A gradient bar above and below frames
+the panel, in Neocol colors that follow the target: aqua to purple when free, yellow to salmon when
+protected, salmon to red in production. Keys with the panel focused:
 
 | Key | Action |
 | --- | --- |

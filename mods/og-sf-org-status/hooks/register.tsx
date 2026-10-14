@@ -2,6 +2,8 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { OrgInfo, OrgRow, Override, Panel, TargetOrg } from '../types'
+import { barCells } from './gradient'
+import type { Cell, Palette } from './gradient'
 import { LOCK, OPERATION_LABEL, findWrites, mentions, otherCommands, protectionOf } from './guard'
 import type { Shell } from './guard'
 import type { Protection } from './guard'
@@ -11,6 +13,7 @@ import {
   baseName,
   buildCatalog,
   explain,
+  SOURCE_LABEL,
   findProjectRoot,
   inferProjectOrgs,
   parse,
@@ -215,8 +218,10 @@ async function loadPanel($: EngineInterface) {
 async function openPanel($: EngineInterface) {
   await update($, message, () => null)
   await update($, editing, () => null)
-  await $.ui.open({ id: PANE, title: 'Salesforce orgs', focus: true, closeOnEscape: true })
+  const { isPlaced } = await $.ui.open({ id: PANE, title: 'Salesforce orgs', focus: true, closeOnEscape: true })
   await loadPanel($)
+
+  return isPlaced
 }
 
 async function loadInfo($: EngineInterface, username: string) {
@@ -445,9 +450,9 @@ export const register: Register = on => {
   on('command.run', { command: COMMAND }, async ($, e) => {
     const name = e.args.trim()
     if (name !== '') return { text: await switchTo($, name) }
-    await openPanel($)
-
-    return { text: explain(await refresh($)) }
+    // The panel shows the target itself; the text is for where no panel is drawn.
+    const org = await refresh($)
+    return (await openPanel($)) ? {} : { text: explain(org) }
   }).catch(() => ({ text: 'og-sf-org-status: could not read the sf CLI configuration.' }))
 
   // Every shell tool: Bash, and PowerShell on Windows.
@@ -527,8 +532,29 @@ export const register: Register = on => {
     ])
     const guardOf = (row: OrgRow) => protectionOf(row, marks[row.username])
 
+    // A gradient bar above and below marks where the mod's display starts and ends;
+    // its colors follow how guarded the target org is.
+    const palette: Palette = target === null ? 'free' : protectionOf(target, marks[target.username]).level
+    const width = Math.max(20, Math.min(e.props.bodyColumns, 120))
+    const bar = (cells: Cell[], key: string) => (
+      <Text key={key}>
+        {cells.map((cell, i) => (
+          <Text key={`${key}:${i}`} color={cell.color} bold={cell.isBold}>
+            {cell.char}
+          </Text>
+        ))}
+      </Text>
+    )
+    const frame = (body: unknown) => (
+      <Box flexDirection="column">
+        {bar(barCells(width, palette, '☁ og-sf-org-status'), 'top')}
+        {body}
+        {bar(barCells(width, palette).reverse(), 'bottom')}
+      </Box>
+    )
+
     if (shownPanel === null) {
-      return (
+      return frame(
         <Box flexDirection="column">
           <Text dimColor>Outside a Salesforce DX project (no sfdx-project.json above the directory).</Text>
         </Box>
@@ -542,7 +568,7 @@ export const register: Register = on => {
         groups.set(group, [...(groups.get(group) ?? []), row])
       }
 
-      return (
+      return frame(
         <Box flexDirection="column">
           <Text bold>Orgs of project {shownPanel.name}: check the ones that belong to it</Text>
           <Text dimColor>Tab moves · Enter checks/unchecks · s saves · c cancels</Text>
@@ -581,7 +607,7 @@ export const register: Register = on => {
     const rowGuard = row && guardOf(row)
 
     if (row && lowering === row.username) {
-      return (
+      return frame(
         <Box flexDirection="column">
           <Text color="error" bold>
             Downgrade {nameOf(row)}: it is classified as PRODUCTION.
@@ -606,7 +632,7 @@ export const register: Register = on => {
       )
     }
 
-    return (
+    return frame(
       <Box flexDirection="column">
         <Text>
           <Text bold>{shownPanel.name}</Text>{' '}
@@ -616,6 +642,22 @@ export const register: Register = on => {
               : "· list inferred from the username's domain (not saved)"}
           </Text>
         </Text>
+        {target ? (
+          <Box flexDirection="column" marginTop={1}>
+            <Text>
+              Target: <Text bold>{nameOf(target)}</Text> {badgeOf(target.kind, protectionOf(target, marks[target.username]))}{' '}
+              <Text dimColor>· from {SOURCE_LABEL[target.source]}</Text>
+            </Text>
+            <Text dimColor>
+              {target.username}
+              {target.instanceUrl ? ` · ${target.instanceUrl}` : ''}
+            </Text>
+          </Box>
+        ) : (
+          <Box marginTop={1}>
+            <Text dimColor>No target org set.</Text>
+          </Box>
+        )}
         <Box flexDirection="column" marginTop={1}>
           {shownPanel.orgs.length === 0 && <Text dimColor>No orgs. Use Edit list.</Text>}
           {shownPanel.orgs.map(one => (

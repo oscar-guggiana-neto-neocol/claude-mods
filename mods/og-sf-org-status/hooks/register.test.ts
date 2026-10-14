@@ -37,7 +37,7 @@ const baseFiles = (): Record<string, string> => {
 const readerOf = (files: Record<string, string>) => async (path: string) => files[path]
 
 /** The world beneath the plugin: files, the sf CLI, the status line, panes. */
-const world = (on: On, files: Record<string, string>, env: Record<string, string> = { HOME }, cwd = PROJECT) => {
+const world = (on: On, files: Record<string, string>, env: Record<string, string> = { HOME }, cwd = PROJECT, isPlaced = true) => {
   const statuses: (string | undefined)[] = []
   const commands: string[][] = []
   const store = new Map<string, unknown>()
@@ -79,7 +79,7 @@ const world = (on: On, files: Record<string, string>, env: Record<string, string
     statuses.push(e.text)
     return { value: undefined }
   })
-  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('ui.open', () => ({ value: { isPlaced } }) as never)
 
   // What another mod draws in the band, beneath this one.
   on('ui.render', { component: 'AbovePrompt' }, $ => ({ type: 'Text', props: {}, children: ['another mod'] }))
@@ -231,7 +231,7 @@ describe('project orgs', () => {
 })
 
 describe('plugin', () => {
-  test('/og-sf-org sets the status line and explains the org', async ($, on) => {
+  test('/og-sf-org sets the status line and shows the target in the panel, not the transcript', async ($, on) => {
     const files = baseFiles()
     files[`${PROJECT}/.sf/config.json`] = JSON.stringify({ 'target-org': 'acme' })
     const { statuses } = world(on, files)
@@ -239,6 +239,21 @@ describe('plugin', () => {
     const { text } = await $.command.run({ command: 'og-sf-org', ...RUN })
 
     expect(statuses).toEqual(['SF 🔴 PROD · acme'])
+    expect(text).toBeUndefined()
+    const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+    expect(await ui.find({ text: /Target: acme 🔴 PROD/ })).toBeDefined()
+    expect(await ui.find({ text: /og-sf-org-status/ })).toBeDefined()
+    expect(await ui.find({ text: /from the project's \.sf\/config\.json/ })).toBeDefined()
+    expect(await ui.find({ text: /me@acme\.com · https:\/\/acme\.my\.salesforce\.com/ })).toBeDefined()
+  })
+
+  test('with no panel drawn, /og-sf-org explains the target as text', async ($, on) => {
+    const files = baseFiles()
+    files[`${PROJECT}/.sf/config.json`] = JSON.stringify({ 'target-org': 'acme' })
+    world(on, files, { HOME }, PROJECT, false)
+
+    const { text } = await $.command.run({ command: 'og-sf-org', ...RUN })
+
     expect(text).toContain('Target org: acme (production)')
     expect(text).toContain("the project's .sf/config.json")
   })

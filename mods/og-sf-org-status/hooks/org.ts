@@ -206,6 +206,12 @@ export const badgeOf = (kind: OrgKind, protection?: { level: string; isDowngrade
 export const statusText = (org: TargetOrg, protection?: { level: string; isDowngraded: boolean }) =>
   `SF ${badgeOf(org.kind, protection)} · ${org.alias ?? org.username}`
 
+export const SOURCE_LABEL: Record<TargetOrg['source'], string> = {
+  env: 'SF_TARGET_ORG variable',
+  project: "the project's .sf/config.json",
+  global: '~/.sf/config.json',
+}
+
 export const explain = (org: TargetOrg | undefined) =>
   org === undefined
     ? 'No target org: outside a Salesforce DX project, or no target-org set.'
@@ -213,7 +219,7 @@ export const explain = (org: TargetOrg | undefined) =>
         `Target org: ${org.alias ?? org.username} (${org.kind})`,
         `Username: ${org.username}`,
         org.instanceUrl && `Instance: ${org.instanceUrl}`,
-        `Source: ${{ env: 'SF_TARGET_ORG variable', project: "the project's .sf/config.json", global: '~/.sf/config.json' }[org.source]}`,
+        `Source: ${SOURCE_LABEL[org.source]}`,
       ]
         .filter(Boolean)
         .join('\n')

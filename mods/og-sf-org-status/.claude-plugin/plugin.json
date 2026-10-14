@@ -1,6 +1,6 @@
 {
   "name": "og-sf-org-status",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Target Salesforce org in the status line, a panel to switch orgs per project, and a write guard for protected and production orgs",
   "author": {
     "name": "Oscar Guggiana"
