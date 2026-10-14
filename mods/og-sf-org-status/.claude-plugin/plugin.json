@@ -1,5 +1,5 @@
 {
-  "name": "sf-org-status",
+  "name": "og-sf-org-status",
   "version": "0.2.1",
   "description": "Org Salesforce alvo na status line, painel para trocar de org por projeto e alerta em produção",
   "author": {

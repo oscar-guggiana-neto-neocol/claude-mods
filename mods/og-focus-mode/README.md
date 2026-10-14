@@ -1,6 +1,6 @@
-# focus-mode
+# og-focus-mode
 
-Uma interface do terminal mais limpa, alternada com `/foco`. A escolha fica lembrada entre sessões,
+Uma interface do terminal mais limpa, alternada com `/og-foco`. A escolha fica lembrada entre sessões,
 e o rodapé mostra `foco` enquanto o modo está ligado.
 
 | Com o modo ligado | |
@@ -14,4 +14,4 @@ e o rodapé mostra `foco` enquanto o modo está ligado.
 
 Fora do alcance de um mod: as linhas de saída de hooks (`SessionStart:startup hook success`) e os
 blocos de sistema. O transcript completo (ctrl+o) também fica compacto com o modo ligado. Para ver
-tudo, desligue com `/foco`.
+tudo, desligue com `/og-foco`.

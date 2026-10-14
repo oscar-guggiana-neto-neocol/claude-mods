@@ -18,21 +18,21 @@ import {
 } from './org'
 import type { AuthFile } from './org'
 
-const PLUGIN = 'sf-org-status'
-const COMMAND = 'sf-org'
+const PLUGIN = 'og-sf-org-status'
+const COMMAND = 'og-sf-org'
 const PANE = 'sf-orgs'
 const POLL_MS = 15_000
 // sf/sfdx commands that can change the target org or its auth.
 const SF_COMMAND = /(^|[\s;&|(])(sf|sfdx)\s/
 const ORG_QUERY = 'SELECT OrganizationType, InstanceName, TrialExpirationDate FROM Organization'
 
-const current = atom({ plugin: 'sf-org-status', key: 'current' } as const, null)
-const panel = atom({ plugin: 'sf-org-status', key: 'panel' } as const, null)
-const selected = atom({ plugin: 'sf-org-status', key: 'selected' } as const, null)
-const editing = atom({ plugin: 'sf-org-status', key: 'editing' } as const, null)
-const info = atom({ plugin: 'sf-org-status', key: 'info' } as const, {})
-const message = atom({ plugin: 'sf-org-status', key: 'message' } as const, null)
-const bandDismissed = atom({ plugin: 'sf-org-status', key: 'bandDismissed' } as const, null)
+const current = atom({ plugin: 'og-sf-org-status', key: 'current' } as const, null)
+const panel = atom({ plugin: 'og-sf-org-status', key: 'panel' } as const, null)
+const selected = atom({ plugin: 'og-sf-org-status', key: 'selected' } as const, null)
+const editing = atom({ plugin: 'og-sf-org-status', key: 'editing' } as const, null)
+const info = atom({ plugin: 'og-sf-org-status', key: 'info' } as const, {})
+const message = atom({ plugin: 'og-sf-org-status', key: 'message' } as const, null)
+const bandDismissed = atom({ plugin: 'og-sf-org-status', key: 'bandDismissed' } as const, null)
 
 // The status text last shown, so an unchanged org draws nothing.
 let shown: string | undefined
@@ -209,7 +209,7 @@ export const register: Register = on => {
     const started = await next(e)
     await $.command.register({
       name: COMMAND,
-      description: 'Painel de orgs Salesforce do projeto (ou /sf-org <alias> para trocar)',
+      description: 'Painel de orgs Salesforce do projeto (ou /og-sf-org <alias> para trocar)',
       argumentHint: '[alias]',
     })
     await refresh($)
@@ -225,7 +225,7 @@ export const register: Register = on => {
     await openPanel($)
 
     return { text: explain(await refresh($)) }
-  }).catch(() => ({ text: 'sf-org-status: não consegui ler a configuração do sf CLI.' }))
+  }).catch(() => ({ text: 'og-sf-org-status: não consegui ler a configuração do sf CLI.' }))
 
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
     const ran = await next(e)

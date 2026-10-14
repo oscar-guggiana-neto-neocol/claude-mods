@@ -3,11 +3,11 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import { compactLine } from './compact'
 
-const COMMAND = 'foco'
+const COMMAND = 'og-foco'
 const STORE_KEY = 'isOn'
 
-const isOn = atom({ plugin: 'focus-mode', key: 'isOn' } as const, false)
-const cwd = atom({ plugin: 'focus-mode', key: 'cwd' } as const, null)
+const isOn = atom({ plugin: 'og-focus-mode', key: 'isOn' } as const, false)
+const cwd = atom({ plugin: 'og-focus-mode', key: 'cwd' } as const, null)
 
 async function toggle($: EngineInterface) {
   const next = !(await read($, isOn))
@@ -36,7 +36,7 @@ export const register: Register = on => {
     const isNowOn = await toggle($)
 
     return { text: isNowOn ? 'Modo foco ligado.' : 'Modo foco desligado.' }
-  }).catch(() => ({ text: 'focus-mode: não consegui alternar o modo.' }))
+  }).catch(() => ({ text: 'og-focus-mode: não consegui alternar o modo.' }))
 
   // A tool call: one dim line; an error or an interruption keeps the full row.
   on('ui.render', { component: 'ToolUse' }, async ($, e, next) => {

@@ -89,7 +89,7 @@ const world = (on: On, files: Record<string, string>) => {
 const RUN = { args: '', origin: { kind: 'composer' as const }, presentation: { isFullscreen: false, columns: 120 } }
 
 const PANE = {
-  plugin: 'sf-org-status',
+  plugin: 'og-sf-org-status',
   component: 'Pane' as const,
   requestId: 'sf-orgs',
   props: {
@@ -200,12 +200,12 @@ describe('project orgs', () => {
 })
 
 describe('plugin', () => {
-  test('/sf-org sets the status line and explains the org', async ($, on) => {
+  test('/og-sf-org sets the status line and explains the org', async ($, on) => {
     const files = baseFiles()
     files[`${PROJECT}/.sf/config.json`] = JSON.stringify({ 'target-org': 'acme' })
     const { statuses } = world(on, files)
 
-    const { text } = await $.command.run({ command: 'sf-org', ...RUN })
+    const { text } = await $.command.run({ command: 'og-sf-org', ...RUN })
 
     expect(statuses).toEqual(['SF 🔴 PROD · acme'])
     expect(text).toContain('Org alvo: acme (production)')
@@ -217,7 +217,7 @@ describe('plugin', () => {
     files[`${PROJECT}/.sf/config.json`] = JSON.stringify({ 'target-org': 'globexdev' })
     const { statuses, commands } = world(on, files)
 
-    await $.command.run({ command: 'sf-org', ...RUN })
+    await $.command.run({ command: 'og-sf-org', ...RUN })
 
     for (const surface of ['terminal', 'desktop'] as const) {
       const ui = await $.ui.mount({ ...PANE, surface })
@@ -242,7 +242,7 @@ describe('plugin', () => {
     files[`${PROJECT}/.sf/config.json`] = JSON.stringify({ 'target-org': 'globexdev' })
     const { store } = world(on, files)
 
-    await $.command.run({ command: 'sf-org', ...RUN })
+    await $.command.run({ command: 'og-sf-org', ...RUN })
     const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
     await ui.press({ key: 'edit' })
     await ui.press({ key: 'check:me@globex.com.globexqa' })
@@ -253,12 +253,12 @@ describe('plugin', () => {
     expect(await ui.find({ key: 'row:me@globex.com.globexqa' })).toBeUndefined()
   })
 
-  test('/sf-org <alias> switches without the pane', async ($, on) => {
+  test('/og-sf-org <alias> switches without the pane', async ($, on) => {
     const files = baseFiles()
     files[`${PROJECT}/.sf/config.json`] = JSON.stringify({ 'target-org': 'globexdev' })
     const { commands } = world(on, files)
 
-    const { text } = await $.command.run({ command: 'sf-org', ...RUN, args: 'globexqa' })
+    const { text } = await $.command.run({ command: 'og-sf-org', ...RUN, args: 'globexqa' })
 
     expect(text).toBe('Org alvo agora: globexqa')
     expect(commands).toContainEqual(['sf', 'config', 'set', 'target-org=globexqa', '--json'])
@@ -269,9 +269,9 @@ describe('plugin', () => {
     files[`${PROJECT}/.sf/config.json`] = JSON.stringify({ 'target-org': 'acme' })
     world(on, files)
 
-    await $.command.run({ command: 'sf-org', ...RUN })
+    await $.command.run({ command: 'og-sf-org', ...RUN })
     const band = await $.ui.mount({
-      plugin: 'sf-org-status',
+      plugin: 'og-sf-org-status',
       surface: 'terminal',
       component: 'AbovePrompt',
       props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 100, scroll: { offset: 0, bodyRows: 10 }, view: {} },

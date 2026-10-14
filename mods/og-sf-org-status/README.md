@@ -1,4 +1,4 @@
-# sf-org-status
+# og-sf-org-status
 
 A org Salesforce alvo do projeto, sempre à vista, e um painel para trocar entre as orgs do projeto.
 
@@ -10,7 +10,7 @@ Fora de um projeto Salesforce DX (sem `sfdx-project.json` acima do cwd), nada ap
 **Faixa de alerta:** quando a org alvo é produção, uma faixa `⚠ PRODUÇÃO` aparece acima do prompt,
 com **Trocar** (abre o painel) e **Ocultar** (some até o alvo mudar).
 
-**Painel (`/sf-org`):** lista as orgs do projeto, com tipo, username e a info da org selecionada
+**Painel (`/og-sf-org`):** lista as orgs do projeto, com tipo, username e a info da org selecionada
 (edição, versão da API, pod, status da conexão, expiração e org id). Atalhos com o painel focado:
 
 | Tecla | Ação |
@@ -21,7 +21,7 @@ com **Trocar** (abre o painel) e **Ocultar** (some até o alvo mudar).
 | `e` | Editar lista: todas as orgs autenticadas, agrupadas por domínio, para marcar as do projeto |
 | `s` | Salvar lista |
 
-`/sf-org <alias>` troca o alvo direto, sem abrir o painel.
+`/og-sf-org <alias>` troca o alvo direto, sem abrir o painel.
 
 ## De onde vêm as orgs do projeto
 

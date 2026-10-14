@@ -49,7 +49,7 @@ export type Panel = {
 
 declare module 'claude-code' {
   interface PluginState {
-    'sf-org-status': {
+    'og-sf-org-status': {
       current: TargetOrg | null
       panel: Panel | null
       /** The username highlighted in the panel. */

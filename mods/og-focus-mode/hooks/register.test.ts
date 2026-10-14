@@ -48,7 +48,7 @@ const world = (on: On) => {
 const RUN = { args: '', origin: { kind: 'composer' as const }, presentation: { isFullscreen: false, columns: 120 } }
 
 const toolUse = (props: Partial<{ tool: string; input: unknown; output: unknown; isErrored: boolean; isRunning: boolean }>) => ({
-  plugin: 'focus-mode',
+  plugin: 'og-focus-mode',
   surface: 'terminal' as const,
   component: 'ToolUse' as const,
   props: {
@@ -72,24 +72,24 @@ describe('plugin', () => {
     expect(await ui.find({ text: 'engine row' })).toBeDefined()
   })
 
-  test('/foco turns it on and off, and remembers it', async ($, on) => {
+  test('/og-foco turns it on and off, and remembers it', async ($, on) => {
     const { store } = world(on)
 
-    expect((await $.command.run({ command: 'foco', ...RUN })).text).toBe('Modo foco ligado.')
+    expect((await $.command.run({ command: 'og-foco', ...RUN })).text).toBe('Modo foco ligado.')
     expect(store.get('isOn')).toBe(true)
 
     const ui = await $.ui.mount(toolUse({}))
     expect(await ui.find({ text: /· Bash git status/ })).toBeDefined()
     expect(await ui.find({ text: 'engine row' })).toBeUndefined()
 
-    expect((await $.command.run({ command: 'foco', ...RUN })).text).toBe('Modo foco desligado.')
+    expect((await $.command.run({ command: 'og-foco', ...RUN })).text).toBe('Modo foco desligado.')
     expect(store.get('isOn')).toBe(false)
     expect(await ui.find({ text: 'engine row' })).toBeDefined()
   })
 
   test('on: an edit shows its counts, an error keeps the full row', async ($, on) => {
     world(on)
-    await $.command.run({ command: 'foco', ...RUN })
+    await $.command.run({ command: 'og-foco', ...RUN })
 
     const edit = await $.ui.mount(
       toolUse({
@@ -107,10 +107,10 @@ describe('plugin', () => {
 
   test('on: results, turn lines and notices are hidden; the footer says foco', async ($, on) => {
     world(on)
-    await $.command.run({ command: 'foco', ...RUN })
+    await $.command.run({ command: 'og-foco', ...RUN })
 
     const result = await $.ui.mount({
-      plugin: 'focus-mode',
+      plugin: 'og-focus-mode',
       surface: 'terminal',
       component: 'ToolResult',
       props: { tool_use_id: 'toolu_1', tool: 'Bash', output: { stdout: 'x' }, isErrored: false },
@@ -118,7 +118,7 @@ describe('plugin', () => {
     expect(await result.drawn()).toMatchObject({ type: 'Box', props: { display: 'none' } })
 
     const turn = await $.ui.mount({
-      plugin: 'focus-mode',
+      plugin: 'og-focus-mode',
       surface: 'terminal',
       component: 'TurnDuration',
       props: { word: 'Baked', durationMs: 3000 },
@@ -126,7 +126,7 @@ describe('plugin', () => {
     expect(await turn.find({ text: 'engine row' })).toBeUndefined()
 
     const failedResult = await $.ui.mount({
-      plugin: 'focus-mode',
+      plugin: 'og-focus-mode',
       surface: 'terminal',
       component: 'ToolResult',
       props: { tool_use_id: 'toolu_2', tool: 'Bash', output: 'boom', isErrored: true },
