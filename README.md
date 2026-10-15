@@ -9,6 +9,7 @@ project.
 | [og-sf-org-status](mods/og-sf-org-status) | status line, panel, band, `/og-sf-org` | The target Salesforce org in sight, switching between the project's orgs, and a write guard for protected and production orgs |
 | [og-focus-mode](mods/og-focus-mode) | render hooks, `/og-focus` | A cleaner interface: tools on one line, results only on error, no turn footers |
 | [og-themes](mods/og-themes) | themes, panel, `/og-theme` | Neocol and LaGana Lion themes, dark and light, per project, switched live by number |
+| [og-ticket](mods/og-ticket) | status line, tool, `/og-ticket` | The work item in focus (ID and description) per project, set by hand or by Claude |
 
 ## Install
 
@@ -17,6 +18,7 @@ claude plugin marketplace add oscar-guggiana-neto-neocol/claude-mods
 claude plugin install og-sf-org-status@oscar-claude-mods --scope user
 claude plugin install og-focus-mode@oscar-claude-mods --scope user
 claude plugin install og-themes@oscar-claude-mods --scope user
+claude plugin install og-ticket@oscar-claude-mods --scope user
 ```
 
 Use `--scope project` to enable a mod for one project only. To update:
