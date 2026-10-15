@@ -24,6 +24,11 @@
       "name": "og-ticket",
       "source": "./mods/og-ticket",
       "description": "The work item in focus (an ID and a description) on the status line, set with /og-ticket or by Claude"
+    },
+    {
+      "name": "og-copy",
+      "source": "./mods/og-copy",
+      "description": "Copy Claude's responses as clean Markdown, in full or block by block (/og-copy), or a part Claude picks (og_copy tool)"
     }
   ]
 }

@@ -1,0 +1,9 @@
+{
+  "name": "og-copy",
+  "version": "0.1.0",
+  "description": "Copy Claude's responses as clean Markdown, in full or block by block (/og-copy), or a part Claude picks (og_copy tool)",
+  "author": {
+    "name": "Oscar Guggiana"
+  },
+  "types": "./types/index.d.ts"
+}

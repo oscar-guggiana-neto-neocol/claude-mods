@@ -10,6 +10,7 @@ project.
 | [og-focus-mode](mods/og-focus-mode) | render hooks, `/og-focus` | A cleaner interface: tools on one line, results only on error, no turn footers |
 | [og-themes](mods/og-themes) | themes, panel, `/og-theme` | Neocol and LaGana Lion themes, dark and light, per project, switched live by number |
 | [og-ticket](mods/og-ticket) | hint line, tool, `/og-ticket` | The work item in focus (ID and description) per project, set by hand or by Claude |
+| [og-copy](mods/og-copy) | panel, tool, `/og-copy` | Copy Claude's responses as clean Markdown, whole or block by block, or a part Claude picks |
 
 ## Install
 
@@ -19,6 +20,7 @@ claude plugin install og-sf-org-status@oscar-claude-mods --scope user
 claude plugin install og-focus-mode@oscar-claude-mods --scope user
 claude plugin install og-themes@oscar-claude-mods --scope user
 claude plugin install og-ticket@oscar-claude-mods --scope user
+claude plugin install og-copy@oscar-claude-mods --scope user
 ```
 
 Use `--scope project` to enable a mod for one project only. To update:
