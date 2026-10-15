@@ -1,0 +1,9 @@
+{
+  "name": "og-ticket",
+  "version": "0.1.0",
+  "description": "The work item in focus (an ID and a description) on the status line, set with /og-ticket or by Claude",
+  "author": {
+    "name": "Oscar Guggiana"
+  },
+  "types": "./types/index.d.ts"
+}

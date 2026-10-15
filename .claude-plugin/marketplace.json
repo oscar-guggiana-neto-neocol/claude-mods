@@ -19,6 +19,11 @@
       "name": "og-themes",
       "source": "./mods/og-themes",
       "description": "Neocol and LaGana Lion themes (dark and light), picked per project with /og-theme and switched live"
+    },
+    {
+      "name": "og-ticket",
+      "source": "./mods/og-ticket",
+      "description": "The work item in focus (an ID and a description) on the status line, set with /og-ticket or by Claude"
     }
   ]
 }
