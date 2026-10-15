@@ -76,7 +76,10 @@ export const register: Register = on => {
   on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
     if (!(await read($, isOn)) || e.props.isWorking) return next(e)
 
-    return next({ ...e, props: { ...e.props, hint: '' } })
+    // What other mods added at the end (`tail`) stays, as the line itself; a
+    // rewritten hint would otherwise drop it.
+    const tail = (e.props.tail ?? '').replace(/^\s*·\s*/, '')
+    return next({ ...e, props: { ...e.props, hint: tail, tail: undefined } })
   })
 
   // The footer says when focus mode is on.

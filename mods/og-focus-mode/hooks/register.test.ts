@@ -133,4 +133,31 @@ describe('plugin', () => {
     })
     expect(await failedResult.find({ text: 'engine row' })).toBeDefined()
   })
+
+  test('on: the idle hint is emptied, but what other mods added at its end stays', async ($, on) => {
+    const hints: { hint: string; tail?: string }[] = []
+    // Before the world's own drawing, which answers every other site.
+    on('ui.render', { component: 'PromptHint' }, ($, e) => {
+      hints.push({ hint: e.props.hint, tail: e.props.tail })
+      return { type: 'Text', props: {}, children: [e.props.hint] }
+    })
+    world(on)
+    await $.command.run({ command: 'og-focus', ...RUN })
+    const hint = (props: { hint: string; tail?: string; isWorking?: boolean }) =>
+      $.ui.mount({
+        plugin: 'og-focus-mode',
+        surface: 'terminal',
+        component: 'PromptHint',
+        props: { isDraft: false, isWorking: false, ...props },
+      })
+
+    await hint({ hint: '? for shortcuts' })
+    expect(hints.at(-1)).toEqual({ hint: '', tail: undefined })
+
+    await hint({ hint: '? for shortcuts', tail: ' · 🎫 MOD-0001 · Create ticket mod' })
+    expect(hints.at(-1)).toEqual({ hint: '🎫 MOD-0001 · Create ticket mod', tail: undefined })
+
+    await hint({ hint: 'esc to interrupt', isWorking: true })
+    expect(hints.at(-1)).toEqual({ hint: 'esc to interrupt', tail: undefined })
+  })
 })

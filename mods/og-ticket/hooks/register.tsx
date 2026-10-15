@@ -1,3 +1,4 @@
+import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Focus } from '../types'
@@ -7,8 +8,9 @@ const PLUGIN = 'og-ticket'
 const COMMAND = 'og-ticket'
 const TOOL = 'og_ticket_set'
 
-// The status text last shown, so an unchanged focus draws nothing.
-let shown: string | undefined
+// The focus as drawn at the end of the hint line under the prompt. Not the
+// status line: the engine leads a plugin's status line with the plugin's name.
+const line = atom({ plugin: 'og-ticket', key: 'line' } as const, null)
 
 const projectKey = (root: string) => `project:${root}`
 
@@ -26,18 +28,15 @@ async function load($: EngineInterface, root: string): Promise<Focus | undefined
   return stored !== null && typeof stored === 'object' ? (stored as Focus) : undefined
 }
 
-function show($: EngineInterface, focus: Focus | undefined) {
-  const text = focus && statusText(focus)
-  if (text === shown) return
-  shown = text
-  $.ui.status(text)
+async function show($: EngineInterface, focus: Focus | undefined) {
+  await update($, line, () => (focus === undefined ? null : statusText(focus)))
 }
 
 /** Stores the project's focus (undefined clears it) and draws it. */
 async function save($: EngineInterface, root: string, focus: Focus | undefined) {
   if (focus === undefined) await $.store.delete(projectKey(root))
   else await $.store.set(projectKey(root), focus)
-  show($, focus)
+  await show($, focus)
 }
 
 const explain = (focus: Focus | undefined) =>
@@ -46,7 +45,6 @@ const explain = (focus: Focus | undefined) =>
     : `Focus: ${[focus.id, focus.description].filter(Boolean).join(' · ')}`
 
 export const register: Register = on => {
-  shown = undefined
 
   on('session.start', async ($, e, next) => {
     const started = await next(e)
@@ -58,7 +56,7 @@ export const register: Register = on => {
     await $.tool.register({
       name: TOOL,
       description:
-        "Sets the work item the user is on for this project, shown on the status line: an optional tracker ID (e.g. SFCOMPRG-1234) and a short description (one line). Use it when the user asks you to set the focus, for instance after reading a ticket or a document.",
+        "Sets the work item the user is on for this project, shown under the prompt: an optional tracker ID (e.g. SFCOMPRG-1234) and a short description (one line). Use it when the user asks you to set the focus, for instance after reading a ticket or a document.",
       inputSchema: {
         type: 'object',
         properties: {
@@ -67,7 +65,7 @@ export const register: Register = on => {
         },
       },
     })
-    show($, await load($, await projectOf($)))
+    await show($, await load($, await projectOf($)))
 
     return started
   })
@@ -81,7 +79,7 @@ export const register: Register = on => {
     }
     if (text === '') {
       const focus = await load($, root)
-      show($, focus)
+      await show($, focus)
       return { text: explain(focus) }
     }
     const focus = parseFocus(text)
@@ -100,5 +98,14 @@ export const register: Register = on => {
     await save($, await projectOf($), focus)
 
     return { result: explain(focus) } as never
+  })
+
+  // At the end of the dim line under the prompt; alone when another mod emptied it.
+  on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
+    const text = await read($, line)
+    if (text === null) return next(e)
+    if (e.props.hint.trim() === '') return next({ ...e, props: { ...e.props, hint: text, tail: undefined } })
+
+    return next({ ...e, props: { ...e.props, tail: `${e.props.tail ?? ''} · ${text}` } })
   })
 }

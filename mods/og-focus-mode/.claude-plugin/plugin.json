@@ -1,6 +1,6 @@
 {
   "name": "og-focus-mode",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Focus mode: a cleaner terminal interface, toggled with /og-focus",
   "author": { "name": "Oscar Guggiana" },
   "types": "./types/index.d.ts"

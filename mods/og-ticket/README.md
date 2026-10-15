@@ -1,12 +1,15 @@
 # og-ticket
 
-The work item you are on, in sight: an optional ID and a short description on the status line,
-kept per project across sessions. No tracker integration: set it from whatever you read, a Jira
+The work item you are on, in sight: an optional ID and a short description at the end of the dim
+hint line under the prompt, kept per project across sessions. No tracker integration: set it from whatever you read, a Jira
 ticket, a document, a spreadsheet row.
 
 ```
-🎫 SFCOMPRG-1234 · Quote sync fails on renewal
+? for shortcuts · 🎫 SFCOMPRG-1234 · Quote sync fails on renewal
 ```
+
+Not the status line: Claude Code leads a plugin's status line with the plugin's name. With
+`og-focus-mode` on, the idle hint is hidden and the focus shows alone in its place.
 
 | Command | Does |
 | --- | --- |
@@ -15,10 +18,10 @@ ticket, a document, a spreadsheet row.
 | `/og-ticket clear` | Removes it |
 
 Claude can set it too, through the `og_ticket_set` tool (`{ id?, description }`): ask it to read
-a ticket or a document and set the focus. The status line shows the result at once.
+a ticket or a document and set the focus. It shows under the prompt at once.
 
 The project is the git root of the session's directory, or the directory itself outside git.
-The line is cut to 60 characters.
+The focus is cut to 60 characters.
 
 ## Install
 

@@ -5,3 +5,12 @@ export type Focus = {
   /** Empty only when there is an ID. */
   description: string
 }
+
+declare module 'claude-code' {
+  interface PluginState {
+    'og-ticket': {
+      /** The focus as the hint line draws it; null when there is none. */
+      line: string | null
+    }
+  }
+}
