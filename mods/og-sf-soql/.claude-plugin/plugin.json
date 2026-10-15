@@ -1,0 +1,9 @@
+{
+  "name": "og-sf-soql",
+  "version": "0.1.0",
+  "description": "SOQL results as a table in a pane: Claude's sf data query runs and your own /og-soql queries, with record view and Markdown/CSV copy",
+  "author": {
+    "name": "Oscar Guggiana"
+  },
+  "types": "./types/index.d.ts"
+}

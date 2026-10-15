@@ -29,6 +29,11 @@
       "name": "og-copy",
       "source": "./mods/og-copy",
       "description": "Copy Claude's responses as clean Markdown, in full or block by block (/og-copy), or a part Claude picks (og_copy tool)"
+    },
+    {
+      "name": "og-sf-soql",
+      "source": "./mods/og-sf-soql",
+      "description": "SOQL results as a table in a pane: Claude's sf data query runs and your own /og-soql queries, with record view and Markdown/CSV copy"
     }
   ]
 }
